@@ -8,8 +8,8 @@
    Nunca coloque aqui a chave "service_role" — só a "anon".
    ========================================================= */
 
-const SUPABASE_URL = "https://SEU-PROJETO.supabase.co";
-const SUPABASE_ANON_KEY = "SUA-CHAVE-ANON-AQUI";
+const SUPABASE_URL = "https://supabase.com/dashboard/project/tyvdtaiyihhaewczpnrf";
+const SUPABASE_ANON_KEY = "sb_publishable_Hu1yk_bON6Ej5YTp8duv-g_hltDBsat";
 
 // "supabase" global vem do script CDN carregado no index.html.
 // Criamos nosso cliente e guardamos em "sb" (usado em auth.js e db.js).
