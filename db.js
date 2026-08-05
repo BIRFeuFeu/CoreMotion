@@ -314,3 +314,4 @@ async function dbUpdateTeam(id, updates){
   if(error) throw error;
   return data;
 }
+
