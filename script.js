@@ -155,19 +155,46 @@ document.querySelectorAll(".nav-link, .pill-tab").forEach(btn => {
 document.getElementById("btn-demo").addEventListener("click", () => setLandingTab("comunidade"));
 
 /* =========================================================
-   HELPERS DE MODAL GENÉRICOS
+   HELPERS DE MODAL GENÉRICOS (com animação de entrada/saída)
    ========================================================= */
 function openOverlay(id){
-  document.getElementById(id).classList.remove("hidden");
+  const el = document.getElementById(id);
+  el.classList.remove("closing");
+  el.classList.remove("hidden");
   document.body.style.overflow = "hidden";
 }
+// Fecha com uma pequena animação de saída antes de sumir de vez.
+function closeOverlayEl(el){
+  if(!el || el.classList.contains("hidden")) return;
+  el.classList.add("closing");
+  const finish = ()=>{
+    el.classList.add("hidden");
+    el.classList.remove("closing");
+    document.body.style.overflow = "";
+  };
+  // se o navegador não disparar o evento por algum motivo, garante o fechamento
+  let done = false;
+  el.addEventListener("animationend", ()=>{ if(!done){ done = true; finish(); } }, { once:true });
+  setTimeout(()=>{ if(!done){ done = true; finish(); } }, 220);
+}
 function closeOverlay(id){
-  document.getElementById(id).classList.add("hidden");
-  document.body.style.overflow = "";
+  closeOverlayEl(document.getElementById(id));
 }
 document.querySelectorAll("[data-close-simple]").forEach(btn=>{
-  btn.addEventListener("click", ()=> btn.closest(".overlay").classList.add("hidden"));
+  btn.addEventListener("click", ()=> closeOverlayEl(btn.closest(".overlay")));
 });
+
+/* Efeito cascata: anima os itens de uma lista/grade em sequência */
+function staggerChildren(container, step = 45, max = 14){
+  if(!container) return;
+  Array.from(container.children).forEach((child, i)=>{
+    child.classList.remove("stagger-item");
+    child.style.animationDelay = "";
+    void child.offsetWidth; // força reflow pra reiniciar a animação
+    child.classList.add("stagger-item");
+    child.style.animationDelay = `${Math.min(i, max) * step}ms`;
+  });
+}
 
 function showFormError(id, message){
   const el = document.getElementById(id);
@@ -597,6 +624,7 @@ async function loadEventos(){
         </div>`;
     }).join("");
     grid.classList.remove("hidden");
+    staggerChildren(grid);
 
     grid.querySelectorAll(".event-enroll-btn").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
@@ -686,6 +714,7 @@ async function loadNoticias(){
       </div>
     `).join("");
     grid.classList.remove("hidden");
+    staggerChildren(grid);
   }catch(err){
     loader.classList.add("hidden");
     empty.textContent = "Erro ao carregar notícias.";
@@ -865,6 +894,7 @@ async function loadListaEquipes(){
     `).join("");
     renderIcons(grid);
     grid.classList.remove("hidden");
+    staggerChildren(grid);
 
     grid.querySelectorAll("[data-ver-equipe]").forEach(btn=>{
       btn.addEventListener("click", ()=>{
@@ -1044,6 +1074,7 @@ async function loadMidia(){
       grid.appendChild(tile);
     }
     renderIcons(grid);
+    staggerChildren(grid);
     grid.querySelectorAll(".media-delete-btn").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
         if(!confirm("Excluir esta mídia?")) return;
@@ -1069,6 +1100,7 @@ async function loadMidia(){
     loader.classList.add("hidden");
     empty.textContent = "Erro ao carregar mídia.";
     empty.classList.remove("hidden");
+    showToast("Erro ao carregar mídia");
   }
 }
 
@@ -1107,7 +1139,7 @@ document.getElementById("form-midia").addEventListener("submit", async e=>{
     closeOverlay("modal-midia");
     loadMidia();
   }catch(err){
-    alert("Erro ao publicar mídia: " + err.message);
+    showToast("Erro ao publicar mídia: " + err.message);
   }finally{
     btn.disabled = false;
   }
@@ -1148,6 +1180,7 @@ async function loadProdutos(){
       </div>
     `).join("");
     grid.classList.remove("hidden");
+    staggerChildren(grid);
     grid.querySelectorAll("[data-open-produto]").forEach(btn=>{
       btn.addEventListener("click", ()=> openProdutoDetalhe(btn.dataset.openProduto, items));
     });
@@ -1337,11 +1370,28 @@ async function updateCartBadge(){
   }
   try{
     const count = await dbGetCartCount(currentUser.id);
+    const prev = badge.textContent;
     badge.textContent = count;
     badge.classList.toggle("hidden", count === 0);
+    if(count > 0 && String(count) !== prev){
+      badge.classList.remove("bump");
+      void badge.offsetWidth;
+      badge.classList.add("bump");
+    }
   }catch{
     badge.classList.add("hidden");
   }
+}
+
+/* Toast simples (já existia no HTML da view Mídia, sem uso — agora ativo) */
+let toastTimer = null;
+function showToast(message){
+  const toast = document.getElementById("toast-midia");
+  if(!toast) return;
+  toast.querySelector("span:last-child").textContent = message;
+  toast.classList.remove("hidden");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> toast.classList.add("hidden"), 3500);
 }
 
 /* =========================================================
