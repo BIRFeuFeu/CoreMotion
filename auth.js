@@ -59,11 +59,28 @@ async function authGetSession(){
   return data.session;
 }
 
-// Dispara callback sempre que o login/logout mudar
+// Dispara callback sempre que o login/logout mudar.
+// Recebe (evento, sessão) — o evento permite detectar PASSWORD_RECOVERY.
 function authOnChange(callback){
   if(supabaseOff()) return () => {};
-  const { data } = sb.auth.onAuthStateChange((_event, session) => callback(session));
+  const { data } = sb.auth.onAuthStateChange((event, session) => callback(session, event));
   return data?.subscription?.unsubscribe || (() => {});
+}
+
+// Envia e-mail de redefinição de senha
+async function authResetPassword(email){
+  const { data, error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + window.location.pathname
+  });
+  if(error) throw error;
+  return data;
+}
+
+// Define nova senha (chamado quando o usuário volta do link de recuperação)
+async function authUpdatePassword(newPassword){
+  const { data, error } = await sb.auth.updateUser({ password: newPassword });
+  if(error) throw error;
+  return data;
 }
 
 // true = conta de convidado (login anônimo), false = conta com e-mail

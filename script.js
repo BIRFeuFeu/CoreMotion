@@ -413,7 +413,21 @@ document.getElementById("form-entrar").addEventListener("submit", async e=>{
     await authSignIn(email, senha);
     // onAuthStateChange cuida do resto (fecha modal, carrega app)
   }catch(err){
-    showFormError("login-error", traduzErro(err.message));
+    const msg = traduzErro(err.message);
+    // Se for "Invalid login credentials", adicionar ação direta: link de esqueci a senha
+    showFormError("login-error", /e-mail ou senha incorretos|invalid login credentials/i.test(msg)
+      ? msg + ' <a href="#" id="err-forgot" style="color:#c1121f;text-decoration:underline;font-weight:700;">Esqueci minha senha</a>'
+      : msg);
+    // Liga o click no novo link do erro (para abrir o modal de recuperação)
+    const errFor = document.getElementById("err-forgot");
+    if(errFor){
+      errFor.addEventListener("click", ev => {
+        ev.preventDefault();
+        hideFormError("login-error");
+        document.getElementById("forgot-email").value = email;
+        openOverlay("modal-forgot");
+      }, { once: true });
+    }
   }finally{
     btn.disabled = false;
   }
@@ -478,11 +492,105 @@ function traduzErro(msg){
   return msg;
 }
 
+/* ---- ESQUECI MINHA SENHA ---- */
+document.getElementById("link-forgot-password").addEventListener("click", e=>{
+  e.preventDefault();
+  hideFormError("login-error");
+  const email = document.getElementById("login-email").value.trim();
+  if(email) document.getElementById("forgot-email").value = email;
+  openOverlay("modal-forgot");
+});
+document.getElementById("btn-back-to-login").addEventListener("click", ()=>{
+  closeOverlay("modal-forgot");
+  openAuth("entrar");
+});
+const formForgot = document.getElementById("form-forgot");
+if(formForgot){
+  formForgot.addEventListener("submit", async e=>{
+    e.preventDefault();
+    hideFormError("forgot-error");
+    document.getElementById("forgot-success").classList.add("hidden");
+    const email = document.getElementById("forgot-email").value.trim();
+    const btn = e.target.querySelector("button[type=submit]");
+    btn.disabled = true;
+    btn.textContent = "ENVIANDO...";
+    try{
+      await authResetPassword(email);
+      const success = document.getElementById("forgot-success");
+      success.textContent = "Link enviado! Verifique o e-mail " + email + " (inclusive a caixa de spam) e siga as instruções para definir uma nova senha.";
+      success.classList.remove("hidden");
+    }catch(err){
+      showFormError("forgot-error", traduzErro(err.message));
+    }finally{
+      btn.disabled = false;
+      btn.textContent = "Enviar link de redefinição";
+    }
+  });
+}
+
+/* ---- DEFINIR NOVA SENHA (quando o usuário volta do link enviado por e-mail) ---- */
+function openNewPasswordModal(){
+  document.getElementById("new-pass-error").classList.add("hidden");
+  document.getElementById("new-pass-success").classList.add("hidden");
+  openOverlay("modal-new-password");
+}
+const formNewPass = document.getElementById("form-new-password");
+if(formNewPass){
+  formNewPass.addEventListener("submit", async e=>{
+    e.preventDefault();
+    document.getElementById("new-pass-error").classList.add("hidden");
+    document.getElementById("new-pass-success").classList.add("hidden");
+    const nova = document.getElementById("new-password").value;
+    const confirma = document.getElementById("new-password-confirm").value;
+    if(nova !== confirma){
+      showFormError("new-pass-error", "As senhas não coincidem.");
+      return;
+    }
+    if(nova.length < 6 || !/\d/.test(nova) || !/[A-Z]/.test(nova)){
+      showFormError("new-pass-error", "A senha deve ter no mínimo 6 caracteres, 1 número e 1 letra maiúscula.");
+      return;
+    }
+    const btn = e.target.querySelector("button[type=submit]");
+    btn.disabled = true;
+    btn.textContent = "SALVANDO...";
+    try{
+      await authUpdatePassword(nova);
+      document.getElementById("new-pass-success").textContent = "Senha atualizada! Entrando com a nova senha...";
+      document.getElementById("new-pass-success").classList.remove("hidden");
+      // Fecha o modal e mostra o dashboard — o authOnChange detecta a sessão
+      setTimeout(()=> closeOverlay("modal-new-password"), 1200);
+    }catch(err){
+      showFormError("new-pass-error", traduzErro(err.message));
+    }finally{
+      btn.disabled = false;
+      btn.textContent = "SALVAR NOVA SENHA";
+    }
+  });
+}
+
+// Detecta o retorno do link de redefinição via URL (Supabase adiciona #type=recovery)
+function isPasswordRecoveryFlow(){
+  try{
+    const hash = window.location.hash || "";
+    const query = window.location.search || "";
+    return /(?:[#?&])type=recovery/.test(hash + query);
+  }catch(e){ return false; }
+}
+if(isPasswordRecoveryFlow()){
+  // Aguarda a sessão criada pelo token de recovery (o Supabase já fez isso)
+  setTimeout(()=> openNewPasswordModal(), 400);
+}
+
 /* =========================================================
    SESSÃO — reage a login/logout em qualquer parte do app
    ========================================================= */
 let wasLoggedIn = false;
-authOnChange(async (session)=>{
+authOnChange(async (session, event)=>{
+  // Se o Supabase disparou PASSWORD_RECOVERY (retorno do link de redefinição),
+  // abre o modal para definir nova senha — a sessão JWT já foi criada nesse caso.
+  if(event === "PASSWORD_RECOVERY" && session){
+    openNewPasswordModal();
+  }
   currentUser = session ? session.user : null;
   isGuest = authIsGuest(currentUser);
 

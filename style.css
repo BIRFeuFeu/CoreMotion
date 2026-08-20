@@ -765,6 +765,20 @@ img{max-width:100%;display:block;}
   background:#fde8e8;color:#c1121f;font-size:13px;font-weight:600;
   padding:10px 14px;border-radius:10px;
 }
+.form-success{
+  background:#ecfdf5;color:#15803d;font-size:13px;font-weight:600;
+  padding:10px 14px;border-radius:10px;
+  border:1px solid #bbf7d0;
+}
+.auth-forgot{
+  text-align:right;margin-top:-10px;margin-bottom:6px;
+  font-size:12.5px;
+}
+.auth-forgot a{
+  color:#c1121f;font-weight:700;text-decoration:none;
+  transition:opacity .2s var(--ease);
+}
+.auth-forgot a:hover{opacity:.7;text-decoration:underline;}
 
 .simple-card{
   position:relative;width:100%;max-width:480px;background:#fff;color:#111;

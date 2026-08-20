@@ -234,6 +234,9 @@
         </div>
       </label>
       <p id="login-error" class="form-error hidden"></p>
+      <div class="auth-forgot">
+        <a href="#" id="link-forgot-password">Esqueci minha senha</a>
+      </div>
       <button type="submit" class="btn btn-primary btn-block">
         <span class="icon-inline" data-icon="arrow-right"></span> Acessar Plataforma
       </button>
@@ -288,6 +291,63 @@
   </div>
 </div>
 
+
+
+<!-- ======================= MODAL: RECUPERAR SENHA ======================= -->
+<div id="modal-forgot" class="overlay hidden">
+  <div class="auth-card">
+    <button class="modal-close" data-close-simple>✕</button>
+    <div class="auth-logo">C</div>
+    <h1>Recuperar senha</h1>
+    <p class="auth-sub">Vamos enviar um link de redefinição para o seu e-mail</p>
+    <form id="form-forgot" class="auth-form">
+      <label>Seu E-mail
+        <div class="input-wrap">
+          <span class="icon-inline" data-icon="mail"></span>
+          <input type="email" id="forgot-email" placeholder="seu@email.com" required>
+        </div>
+      </label>
+      <p id="forgot-error" class="form-error hidden"></p>
+      <p id="forgot-success" class="form-success hidden"></p>
+      <button type="submit" class="btn btn-primary btn-block">
+        <span class="icon-inline" data-icon="arrow-right"></span> Enviar link de redefinição
+      </button>
+      <button type="button" class="btn btn-light btn-block" id="btn-back-to-login">
+        Voltar para o login
+      </button>
+    </form>
+  </div>
+</div>
+
+
+<!-- ======================= MODAL: DEFINIR NOVA SENHA (após link de redefinição) ======================= -->
+<div id="modal-new-password" class="overlay hidden">
+  <div class="auth-card">
+    <div class="auth-logo">C</div>
+    <h1>Definir nova senha</h1>
+    <p class="auth-sub">Você voltou do link de redefinição — defina sua nova senha para entrar.</p>
+    <form id="form-new-password" class="auth-form">
+      <label>Nova senha
+        <div class="input-wrap">
+          <span class="icon-inline" data-icon="lock"></span>
+          <input type="password" id="new-password" placeholder="Mínimo 6 caracteres, 1 número, 1 maiúscula" required>
+          <button type="button" class="show-pass" data-icon="eye"></button>
+        </div>
+      </label>
+      <label>Confirme a nova senha
+        <div class="input-wrap">
+          <span class="icon-inline" data-icon="lock"></span>
+          <input type="password" id="new-password-confirm" placeholder="Repita a nova senha" required>
+        </div>
+      </label>
+      <p id="new-pass-error" class="form-error hidden"></p>
+      <p id="new-pass-success" class="form-success hidden"></p>
+      <button type="submit" class="btn btn-primary btn-block">
+        <span class="icon-inline" data-icon="arrow-right"></span> SALVAR NOVA SENHA
+      </button>
+    </form>
+  </div>
+</div>
 
 <!-- ======================= DASHBOARD (APP) ======================= -->
 <div id="page-dashboard" class="hidden">
