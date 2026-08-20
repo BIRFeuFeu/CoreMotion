@@ -278,6 +278,48 @@ async function dbRejectAdminRequest(requestId){
   return data;
 }
 
+/* ---------- PAINEL DO DONO (controle total) ---------- */
+
+// Promove um usuário a administrador direto (sem pedido)
+async function dbGrantAdmin(userId){
+  const { data, error } = await sb.rpc("grant_admin_access", { target_user: userId });
+  if(error) throw error;
+  return data;
+}
+
+// Remove o privilégio de administrador
+async function dbRevokeAdmin(userId){
+  const { data, error } = await sb.rpc("revoke_admin_access", { target_user: userId });
+  if(error) throw error;
+  return data;
+}
+
+// Exclui uma conta por completo (usuário + perfil + tudo que criou)
+async function dbDeleteUser(userId){
+  const { data, error } = await sb.rpc("delete_user", { target_user: userId });
+  if(error) throw error;
+  return data;
+}
+
+// Contagens de tudo que existe na plataforma (JSON)
+async function dbGetSiteStats(){
+  const { data, error } = await sb.rpc("get_site_stats");
+  if(error) throw error;
+  return data;
+}
+
+// Lista todos os usuários com e-mail, papel e data de cadastro
+async function dbGetAllUsers(){
+  const { data, error } = await sb.rpc("get_all_users");
+  if(error) throw error;
+  return data;
+}
+
+async function dbDeleteNews(id){
+  const { error } = await sb.from("news").delete().eq("id", id);
+  if(error) throw error;
+}
+
 /* ---------- AGENDA — criação de eventos (só admin) ---------- */
 
 async function dbCreateEvent(event){

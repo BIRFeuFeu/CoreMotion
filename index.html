@@ -305,10 +305,17 @@
       <span class="icon-inline" data-icon="shield"></span>
       <span class="sidebar-label">CONTA ADMIN</span>
     </div>
+    <div class="sidebar-badge owner hidden" id="sidebar-owner-badge" title="Conta de desenvolvedor — dono do site">
+      <span class="icon-inline" data-icon="terminal"></span>
+      <span class="sidebar-label">DESENVOLVEDOR</span>
+    </div>
 
     <nav class="sidebar-nav">
       <button class="side-item active" data-view="inicio">
         <span class="icon-inline" data-icon="home"></span><span class="sidebar-label">Início</span>
+      </button>
+      <button class="side-item owner-item hidden" id="side-painel" data-view="painel">
+        <span class="icon-inline" data-icon="terminal"></span><span class="sidebar-label">Painel do Dono</span>
       </button>
       <button class="side-item" data-view="noticias">
         <span class="icon-inline" data-icon="newspaper"></span><span class="sidebar-label">Notícias</span>
@@ -340,6 +347,14 @@
 
   <main class="main-content">
 
+    <!-- ---- BARRA DO MODO DESENVOLVEDOR (visível só para o dono) ---- -->
+    <div class="dev-topbar hidden" id="dev-topbar">
+      <span class="icon-inline" data-icon="terminal"></span>
+      <strong>MODO DESENVOLVEDOR</strong>
+      <span class="dev-topbar-sub">— você controla o CoreMotion</span>
+      <button class="dev-topbar-btn" data-view-link="painel">Abrir Painel</button>
+    </div>
+
     <!-- ---- VIEW: INÍCIO ---- -->
     <section class="view" id="view-inicio" data-view-panel>
       <div class="dash-layout">
@@ -367,6 +382,55 @@
         <div class="news-card news-img-1"><span class="news-badge">Judô</span></div>
         <div class="news-card news-img-2"><span class="news-badge">Jiu-jitsu</span></div>
         <div class="news-card news-img-3"><span class="news-badge">Basquete</span></div>
+      </div>
+    </section>
+
+    <!-- ---- VIEW: PAINEL DO DONO (controle total) ---- -->
+    <section class="view hidden" id="view-painel" data-view-panel>
+      <div class="view-heading">
+        <div class="view-icon-box owner" data-icon="terminal"></div>
+        <div>
+          <h1>Painel do Desenvolvedor</h1>
+          <p>Estatísticas, usuários e moderação do CoreMotion</p>
+        </div>
+      </div>
+
+      <div class="loading-wrap hidden" data-loader-painel>
+        <div class="spinner"></div>
+      </div>
+      <div class="empty-state hidden" data-empty-painel>
+        <p>Erro ao carregar o painel.</p>
+      </div>
+
+      <div id="painel-body">
+        <div class="stats-grid" id="painel-stats"></div>
+
+        <div class="panel-grid-2">
+          <div class="settings-card">
+            <div class="settings-title"><span class="icon-inline" data-icon="shield-alert"></span> Solicitações de Administrador</div>
+            <div id="painel-requests-list" class="owner-requests-list"></div>
+            <p id="painel-requests-empty" class="simple-sub hidden">Nenhuma solicitação pendente.</p>
+          </div>
+
+          <div class="settings-card">
+            <div class="settings-title"><span class="icon-inline" data-icon="users"></span> Usuários da plataforma</div>
+            <div class="table-wrap">
+              <table class="owner-table">
+                <thead>
+                  <tr><th>Usuário</th><th>E-mail</th><th>Papel</th><th>Ações</th></tr>
+                </thead>
+                <tbody id="painel-users-body">
+                  <tr><td colspan="4" class="comment-empty">Carregando usuários...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <div class="settings-title"><span class="icon-inline" data-icon="trash"></span> Conteúdo da plataforma (moderação)</div>
+          <div id="painel-conteudo"><p class="simple-sub">Carregando conteúdo...</p></div>
+        </div>
       </div>
     </section>
 

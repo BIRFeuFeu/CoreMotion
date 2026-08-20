@@ -40,6 +40,8 @@ const ICONS = {
   menu: `<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>`,
   "x": `<line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/>`,
   image: `<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/>`,
+  terminal: `<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>`,
+  trash: `<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>`,
 };
 
 function renderIcons(root = document){
@@ -107,6 +109,13 @@ function applyAccountTypeToUI(){
   document.getElementById("sidebar-admin-badge").classList.toggle("hidden", !isAdminAccount);
   document.getElementById("perfil-guest-banner").classList.toggle("hidden", !isGuest);
   document.getElementById("agenda-guest-banner").classList.toggle("hidden", !isGuest);
+
+  // ---- MODO DESENVOLVEDOR (visível só para o dono do site) ----
+  const isOwner = !!isSiteOwner && !isGuest;
+  document.getElementById("sidebar-owner-badge").classList.toggle("hidden", !isOwner);
+  document.getElementById("dev-topbar").classList.toggle("hidden", !isOwner);
+  document.getElementById("side-painel").classList.toggle("hidden", !isOwner);
+  dashboardRoot.classList.toggle("dev-mode", isOwner);
 
   // Botões/ações que exigem conta com e-mail
   const restrictedButtons = [
@@ -724,6 +733,7 @@ function switchView(view){
   if(view === "marketplace") loadProdutos(document.getElementById("marketplace-search")?.value || "");
   if(view === "equipe") loadEquipe();
   if(view === "config") loadAccountStatus();
+  if(view === "painel") loadPainel();
   if(window.innerWidth <= 720) closeMobileSidebar();
 }
 document.querySelectorAll(".side-item[data-view]").forEach(btn=>{
@@ -1178,18 +1188,19 @@ document.getElementById("form-admin-request").addEventListener("submit", async e
   }
 });
 
-async function loadOwnerRequests(){
-  const list = document.getElementById("owner-requests-list");
-  const empty = document.getElementById("owner-requests-empty");
+// Renderiza as solicitações de admin em qualquer contêiner
+// (usada em Configurações e no Painel do Dono)
+async function renderAdminRequests(listEl, emptyEl){
+  if(!listEl) return;
   try{
     const requests = await dbGetPendingAdminRequests();
     if(!requests.length){
-      list.innerHTML = "";
-      empty.classList.remove("hidden");
+      listEl.innerHTML = "";
+      if(emptyEl) emptyEl.classList.remove("hidden");
       return;
     }
-    empty.classList.add("hidden");
-    list.innerHTML = requests.map(r => `
+    if(emptyEl) emptyEl.classList.add("hidden");
+    listEl.innerHTML = requests.map(r => `
       <div class="owner-request-item">
         <div>
           <strong>${r.full_name || "Sem nome"}</strong>
@@ -1204,31 +1215,229 @@ async function loadOwnerRequests(){
       </div>
     `).join("");
 
-    list.querySelectorAll("[data-approve]").forEach(btn=>{
+    listEl.querySelectorAll("[data-approve]").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
         btn.disabled = true;
         try{
           await dbApproveAdminRequest(btn.dataset.approve);
-          await loadOwnerRequests();
+          await renderAdminRequests(listEl, emptyEl);
         }catch(err){ showToast("Erro ao aprovar: " + err.message); btn.disabled = false; }
       });
     });
-    list.querySelectorAll("[data-reject]").forEach(btn=>{
+    listEl.querySelectorAll("[data-reject]").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
         if(!confirm("Recusar essa solicitação?")) return;
         btn.disabled = true;
         try{
           await dbRejectAdminRequest(btn.dataset.reject);
-          await loadOwnerRequests();
+          await renderAdminRequests(listEl, emptyEl);
         }catch(err){ showToast("Erro ao recusar: " + err.message); btn.disabled = false; }
       });
     });
   }catch(err){
-    list.innerHTML = `<p class="simple-sub">Erro ao carregar solicitações.</p>`;
+    listEl.innerHTML = `<p class="simple-sub">Erro ao carregar solicitações.</p>`;
   }
 }
 
+// Mantém compatibilidade com as chamadas antigas (Configurações)
+async function loadOwnerRequests(){
+  await renderAdminRequests(
+    document.getElementById("owner-requests-list"),
+    document.getElementById("owner-requests-empty")
+  );
+}
+
 document.getElementById("btn-ir-equipe").addEventListener("click", ()=> switchView("equipe"));
+
+/* =========================================================
+   PAINEL DO DONO — estatísticas, usuários e moderação
+   ========================================================= */
+async function loadPainel(){
+  const view = document.getElementById("view-painel");
+  const loader = view.querySelector("[data-loader-painel]");
+  const empty = view.querySelector("[data-empty-painel]");
+  const body = document.getElementById("painel-body");
+  loader.classList.remove("hidden");
+  empty.classList.add("hidden");
+  body.classList.add("hidden");
+
+  try{
+    const [stats, users] = await Promise.all([
+      dbGetSiteStats(),
+      dbGetAllUsers()
+    ]);
+    loader.classList.add("hidden");
+    body.classList.remove("hidden");
+
+    renderPainelStats(stats);
+    await renderAdminRequests(
+      document.getElementById("painel-requests-list"),
+      document.getElementById("painel-requests-empty")
+    );
+    renderPainelUsers(users);
+    await renderPainelConteudo();
+  }catch(err){
+    loader.classList.add("hidden");
+    empty.textContent = "Erro ao carregar o painel: " + traduzErro(err.message);
+    empty.classList.remove("hidden");
+  }
+}
+
+function renderPainelStats(stats){
+  const grid = document.getElementById("painel-stats");
+  const items = [
+    ["users", "Usuários"], ["admins", "Admins"],
+    ["pending_requests", "Pedidos", "warn"],
+    ["products", "Produtos"], ["news", "Notícias"],
+    ["media", "Mídias"], ["events", "Eventos"],
+    ["teams", "Equipes"], ["enrollments", "Inscrições"],
+    ["cart_items", "Carrinhos"]
+  ];
+  grid.innerHTML = items.map(([key, label, warn]) => `
+    <div class="stat-card ${warn ? "warn" : ""}">
+      <span class="stat-value">${Number(stats?.[key] || 0).toLocaleString("pt-BR")}</span>
+      <span class="stat-label">${label}</span>
+    </div>`).join("");
+}
+
+function renderPainelUsers(users){
+  const tbody = document.getElementById("painel-users-body");
+  if(!users || !users.length){
+    tbody.innerHTML = `<tr><td colspan="4" class="comment-empty">Nenhum usuário cadastrado.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = users.map(u => {
+    const isMe = currentUser && u.id === currentUser.id;
+    const tag = u.is_owner
+      ? `<span class="tag tag-owner">Dono</span>`
+      : u.is_admin
+        ? `<span class="tag tag-admin">Admin</span>`
+        : `<span class="tag tag-user">Atleta</span>`;
+    const dateLabel = u.created_at
+      ? new Date(u.created_at).toLocaleDateString("pt-BR")
+      : "—";
+
+    let actions = "";
+    if(!u.is_owner && !isMe){
+      actions = `
+        ${u.is_admin
+          ? `<button class="btn btn-light" data-revoke-admin="${u.id}">Revogar Admin</button>`
+          : `<button class="btn btn-green" data-grant-admin="${u.id}">Tornar Admin</button>`}
+        <button class="btn btn-danger" data-delete-user="${u.id}">Excluir</button>`;
+    }else if(isMe){
+      actions = `<span class="comment-empty">Você</span>`;
+    }
+
+    return `
+      <tr>
+        <td><strong>${escapeHtml(u.full_name || "Sem nome")}</strong><br><span class="comment-empty" style="font-size:11.5px">${dateLabel}</span></td>
+        <td>${escapeHtml(u.email || "—")}</td>
+        <td>${tag}</td>
+        <td><div class="row-actions">${actions}</div></td>
+      </tr>`;
+  }).join("");
+
+  tbody.querySelectorAll("[data-grant-admin]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      if(!confirm("Promover este usuário a administrador?")) return;
+      btn.disabled = true;
+      try{
+        await dbGrantAdmin(btn.dataset.grantAdmin);
+        showToast("Usuário promovido a administrador!", "success");
+        loadPainel();
+      }catch(err){ showToast("Erro: " + traduzErro(err.message), "error"); btn.disabled = false; }
+    });
+  });
+  tbody.querySelectorAll("[data-revoke-admin]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      if(!confirm("Remover o acesso de administrador deste usuário?")) return;
+      btn.disabled = true;
+      try{
+        await dbRevokeAdmin(btn.dataset.revokeAdmin);
+        showToast("Acesso de administrador revogado.", "success");
+        loadPainel();
+      }catch(err){ showToast("Erro: " + traduzErro(err.message), "error"); btn.disabled = false; }
+    });
+  });
+  tbody.querySelectorAll("[data-delete-user]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      if(!confirm("EXCLUIR este usuário? O perfil e todo o conteúdo dele serão apagados permanentemente.")) return;
+      if(!confirm("Tem certeza absoluta? Essa ação não pode ser desfeita.")) return;
+      btn.disabled = true;
+      try{
+        await dbDeleteUser(btn.dataset.deleteUser);
+        showToast("Usuário excluído.", "success");
+        loadPainel();
+      }catch(err){ showToast("Erro: " + traduzErro(err.message), "error"); btn.disabled = false; }
+    });
+  });
+}
+
+// Lista os últimos itens de cada tipo de conteúdo com botão de apagar
+async function renderPainelConteudo(){
+  const container = document.getElementById("painel-conteudo");
+  try{
+    const [products, news, media, events] = await Promise.all([
+      dbGetProducts().catch(()=>[]),
+      dbGetNews().catch(()=>[]),
+      dbGetMedia().catch(()=>[]),
+      dbGetEvents().catch(()=>[])
+    ]);
+
+    const sections = [
+      { title: "Produtos", icon: "shopping-bag", items: products.slice(0, 6).map(p => ({
+        title: p.title, meta: p.category || "Geral", id: p.id, action: "produto"
+      })) },
+      { title: "Notícias", icon: "newspaper", items: news.slice(0, 6).map(n => ({
+        title: n.title, meta: n.category || "Geral", id: n.id, action: "noticia"
+      })) },
+      { title: "Mídia", icon: "film", items: media.slice(0, 6).map(m => ({
+        title: m.caption || "Mídia sem legenda", meta: m.media_type || "imagem", id: m.id, action: "midia"
+      })) },
+      { title: "Eventos", icon: "calendar", items: events.slice(0, 6).map(ev => ({
+        title: ev.title, meta: ev.type === "campeonato" ? "Campeonato" : "Treino", id: ev.id, action: "evento"
+      })) }
+    ];
+
+    if(sections.every(s => !s.items.length)){
+      container.innerHTML = `<p class="simple-sub">Nenhum conteúdo publicado ainda.</p>`;
+      return;
+    }
+
+    container.innerHTML = sections.map(section => `
+      <div class="content-mod-group">
+        <h4><span class="icon-inline" data-icon="${section.icon}"></span> ${section.title} (${section.items.length} mais recentes)</h4>
+        ${section.items.length ? `
+          <div class="content-mod-list">
+            ${section.items.map(it => `
+              <div class="content-mod-item">
+                <span class="cm-title">${escapeHtml(it.title)}</span>
+                <span class="cm-meta">${escapeHtml(it.meta)}</span>
+                <button class="btn btn-danger" data-mod-delete="${it.action}:${it.id}">Apagar</button>
+              </div>`).join("")}
+          </div>` : `<p class="comment-empty">Nenhum.</p>`}
+      </div>`).join("");
+    renderIcons(container);
+
+    container.querySelectorAll("[data-mod-delete]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        if(!confirm("Apagar este conteúdo? Essa ação não pode ser desfeita.")) return;
+        const [action, id] = btn.dataset.modDelete.split(":");
+        btn.disabled = true;
+        try{
+          if(action === "produto") await dbDeleteProduct(id);
+          else if(action === "noticia") await dbDeleteNews(id);
+          else if(action === "midia") await dbDeleteMedia(id);
+          else if(action === "evento") await dbDeleteEvent(id);
+          showToast("Conteúdo apagado.", "success");
+          renderPainelConteudo();
+        }catch(err){ showToast("Erro ao apagar: " + traduzErro(err.message), "error"); btn.disabled = false; }
+      });
+    });
+  }catch(err){
+    container.innerHTML = `<p class="simple-sub">Erro ao carregar conteúdo: ${escapeHtml(err.message)}</p>`;
+  }
+}
 
 /* =========================================================
    MÍDIA — carregar, publicar e curtir

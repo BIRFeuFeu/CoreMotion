@@ -272,6 +272,15 @@ Anonymous Sign-ins** no seu projeto (passo 4 acima). Para o Google, é o passo 5
   que filtrar no front-end.
 - **Validação de formulários**: títulos/valores obrigatórios conferidos antes de
   enviar, com aviso amigável (eventos, notícias, produtos).
+- **Modo Desenvolvedor (dono do site)**: visual diferenciado — badge dourado
+  "DESENVOLVEDOR" na sidebar, barra "MODO DESENVOLVEDOR" no topo, borda dourada
+  e item exclusivo no menu. Fica óbvio quando você está na conta de dono.
+- **Painel do Dono** (menu lateral → "Painel do Dono"):
+  - Estatísticas do site (usuários, admins, produtos, notícias, mídias, eventos, equipes, inscrições, pedidos pendentes);
+  - Gestão de usuários: **promover** a admin, **revogar** admin e **excluir** conta (com confirmação dupla);
+  - Solicitações de administrador (aprovar/recusar) direto no painel;
+  - Moderação: apagar qualquer produto, notícia, mídia ou evento da plataforma.
+  - Tudo protegido no banco: as funções só executam para o dono (security definer + checagem is_owner).
 
 ## Publicar no GitHub Pages
 1. Suba todos os arquivos (`.html`, `.css`, `.js`, `.sql`, `.md`) na raiz de um repositório.
