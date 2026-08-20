@@ -9,6 +9,7 @@ no Supabase: autenticação, banco de dados e upload de imagens.
 | `index.html` | Toda a marcação: landing, login/cadastro, onboarding, dashboard e modais |
 | `style.css` | Todo o visual |
 | `supabase-client.js` | Configuração de conexão com seu projeto Supabase |
+| `toast.js` | Sistema de notificações (substitui os `alert()` do navegador) |
 | `auth.js` | Login por e-mail, login com Google, conta convidado (login anônimo), logout |
 | `db.js` | Upload de arquivos + leitura/escrita no banco (perfis, produtos, comentários, notícias, mídia, equipes, pedidos de admin) |
 | `script.js` | Toda a interação da interface, já ligada ao Supabase |
@@ -22,17 +23,15 @@ no Supabase: autenticação, banco de dados e upload de imagens.
 1. Crie uma conta em [supabase.com](https://supabase.com) e clique em **New Project**.
 2. Espere o projeto terminar de provisionar (1–2 minutos).
 
-### 2. Antes de rodar o banco: coloque seu e-mail como dono do site
-Abra o arquivo `schema.sql` deste projeto no seu computador e procure a linha
-(perto do topo, dentro da função `handle_new_user`):
-```sql
-owner_email text := 'alfeuvlp@gmail.com';
-```
-Se esse já é o seu e-mail, não precisa mexer em nada. Se quiser trocar,
-substitua pelo e-mail que você vai usar pra logar (o mesmo que você vai usar
-no login com Google ou no cadastro por e-mail). **Essa é a única pessoa que
-consegue aprovar novos administradores** — então confira com atenção antes de
-rodar o script.
+### 2. E-mail do dono (já configurado neste projeto)
+O e-mail do dono do site já está configurado como **alfeu.paula@escola.pr.gov.br**
+no `schema.sql` (nas duas ocorrências: função `handle_new_user` e bloco de
+"conserto retroativo"). Confira apenas se é esse mesmo o e-mail que você vai usar
+para logar — **é a única pessoa que consegue aprovar novos administradores**.
+
+> Se precisar trocar: altere o e-mail nas **duas** ocorrências do `schema.sql`.
+> Se o e-mail ficar como o placeholder `SEU-EMAIL-DONO@exemplo.com`, o script
+> para com um erro claro, de propósito.
 
 ### 3. Rodar o banco de dados
 1. No Supabase, abra **SQL Editor** → **New query**.
@@ -55,7 +54,8 @@ colar elas no **Supabase**. Vá com calma, é só a primeira vez que é chata.
 
 **5.1 — No Google Cloud Console**
 1. Acesse [console.cloud.google.com](https://console.cloud.google.com) e faça
-   login com o `alfeuvlp@gmail.com`.
+   login com a conta Google que você usa (pode ser seu Gmail pessoal — não
+   precisa ser o mesmo e-mail do dono do site).
 2. No topo, clique em **Select a project → New Project**. Dê um nome (ex:
    "CoreMotion") e clique em **Create**. Espere carregar e selecione o projeto.
 3. No menu lateral (☰), vá em **APIs & Services → OAuth consent screen**.
@@ -92,26 +92,29 @@ escolhe a conta, e volta logada automaticamente.
 1. Vá em **Project Settings → API**.
 2. Copie a **Project URL** e a chave **anon public**.
 
-### 7. Colar as chaves no projeto
-Abra `supabase-client.js` e substitua:
-```js
-const SUPABASE_URL = "https://SEU-PROJETO.supabase.co";
-const SUPABASE_ANON_KEY = "SUA-CHAVE-ANON-AQUI";
-```
-pelos valores copiados no passo 6. **Nunca** use a chave `service_role` no front-end — só a `anon`.
+### 7. Chaves de API (já colocadas neste projeto)
+As chaves do projeto **tyvdtaiyihhaewczpnrf** já estão preenchidas no
+`supabase-client.js` (Project URL + anon public). **Nunca** use a chave
+`service_role` no front-end — só a `anon`.
 
-### 8. Mantenha a confirmação por e-mail ATIVADA
-Diferente do que muita gente recomenda pra "testar mais rápido", **aqui você
-quer deixar ligado** — é assim que o atleta confirma o próprio cadastro
-sozinho, sem precisar da sua aprovação:
+Se um dia precisar trocar de projeto, edite `supabase-client.js` ou rode no
+console do navegador: `configureSupabase("URL", "CHAVE")`.
 
-- **Authentication → Providers → Email** → deixe **"Confirm email" MARCADO**
-  (é o padrão do Supabase, então só não desmarque).
+### 8. Login direto (sem verificação por e-mail) — configuração usada no beta
+No beta, o cadastro entra **direto**: a pessoa cria a conta e já cai logada no
+app, sem precisar confirmar nada por e-mail. Para isso, a confirmação fica
+**DESLIGADA** no projeto:
 
-Com isso ligado: quando alguém cria conta com e-mail e senha, o Supabase manda
-um e-mail de confirmação pra caixa de entrada que a pessoa informou, e ela só
-consegue logar depois de clicar no link. Contas com Google não passam por essa
-etapa (o Google já confirma o e-mail por conta própria).
+- **Authentication → Sign In / Providers → Email** → deixe **"Confirm email" DESMARCADO**
+- Clique em **Save**
+
+Com a confirmação desligada, o fluxo é: pessoa preenche nome/e-mail/senha →
+clica em "Criar Minha Conta" → o Supabase devolve a sessão na hora → o app
+entra direto (e mostra o onboarding de perfil). Simples e sem depender de
+caixa de e-mail.
+
+> Se um dia você quiser voltar a pedir confirmação, é só marcar "Confirm email"
+> de novo — o app já trata os dois casos sozinho.
 
 Pronto — o site já está 100% funcional com banco de dados real.
 
@@ -161,12 +164,10 @@ apagar suas próprias mídias, comentar em produtos, inscrever-se e cancelar
 inscrição em treinos/campeonatos, alterar as configurações do site, e comprar
 (adicionar/remover itens do carrinho).
 
-- **Cadastro por e-mail:** a pessoa recebe um e-mail de confirmação na caixa
-  que ela mesma informou, e só consegue logar depois de clicar no link. Isso
-  já vem pronto do Supabase, contanto que "Confirm email" esteja ativado
-  (passo 8 acima).
-- **Login com Google:** não precisa de confirmação — o Google já validou o
-  e-mail da pessoa antes.
+- **Cadastro por e-mail:** com a confirmação desligada (configuração do beta,
+  passo 8), a pessoa cria a conta e já entra direto — sem verificação.
+- **Login com Google:** (opcional, por enquanto desativado no beta) — não
+  precisa de confirmação — o Google já validou o e-mail da pessoa antes.
 
 ### Conta convidado ("Entrar como Convidado")
 É um **login anônimo do Supabase** — não pede e-mail nem senha, mas ainda assim
@@ -187,7 +188,7 @@ Não existe cadastro direto como admin. O caminho é:
    clica em **Enviar Solicitação**. Isso cria uma linha na tabela
    `admin_requests` com status `pending` — a conta continua sendo atleta
    normalmente enquanto isso.
-4. **Você** (logado com `alfeuvlp@gmail.com`, reconhecido como dono do site)
+4. **Você** (logado com `alfeu.paula@escola.pr.gov.br`, reconhecido como dono do site)
    vê essa solicitação em **Configurações → Conta**, num painel que só
    aparece pra você, com os botões **Aprovar** e **Recusar**.
 5. Se você aprovar, a conta da pessoa vira admin **na hora** — na próxima vez
@@ -235,6 +236,51 @@ o painel dentro do app já resolve o "só eu aprovo" sem depender de mais nada.
 
 Para o login anônimo funcionar, lembre de ativar **Authentication → Providers →
 Anonymous Sign-ins** no seu projeto (passo 4 acima). Para o Google, é o passo 5.
+
+## O que já foi melhorado nesta versão
+
+- **Configuração do Supabase sem dor**: o site detecta chaves em branco/placeholder,
+  mostra um **banner amarelo** no topo explicando o que fazer, e as funções do banco
+  exibem mensagem clara em vez de quebrar silenciosamente. Dá para configurar por
+  arquivo (`supabase-client.js`) ou pelo console (`configureSupabase(...)`).
+- **Trava no schema.sql**: o script para com um erro claro se você rodar sem trocar
+  o e-mail do dono (não dá mais para esquecer).
+- **Fim dos `alert()`**: todas as mensagens agora usam **toasts** bonitos
+  (sucesso/erro/aviso/info), não bloqueiam a tela e somem sozinhas.
+- **Imagens sem URL não quebram mais**: cards de notícia, produto, equipe e mídia
+  mostram um placeholder elegante quando não há imagem (e se a imagem falhar ao
+  carregar, também).
+- **Notícias com título e resumo**: os cards agora exibem o título real, um trecho
+  do conteúdo, autor e data (antes mostravam só a categoria).
+- **Modais com acessibilidade**: foco travado dentro do modal (Tab/Shift+Tab),
+  fechamento com `Esc`, `role="dialog"`/`aria-modal`, e o resto da página fica
+  `inert` enquanto o modal está aberto.
+- **Sidebar em gaveta no celular**: no mobile a sidebar vira um drawer com botão
+  de menu e backdrop (antes ela cobria o conteúdo sem como fechar).
+- **Sessão expirada avisa**: se o token do Supabase expirar, o usuário recebe um
+  aviso em vez de falhas silenciosas.
+- **Erros traduzidos**: mensagens comuns do Supabase (chave inválida, e-mail não
+  confirmado, rate limit, sem conexão) viram avisos em português.
+- **Bug corrigido**: o painel do dono do site agora aparece assim que o dono loga
+  (antes só aparecia ao reabrir a aba Configurações).
+- **Login direto no beta**: sem verificação por e-mail — o cadastro já entra
+  logado (guia no passo 8).
+- **Skeleton loading**: as grades (notícias, mídia, agenda, marketplace, equipes)
+  mostram placeholders animados enquanto carregam, em vez de só um spinner.
+- **Busca do Marketplace no banco**: a barra de pesquisa agora consulta o
+  Supabase (título, descrição e categoria) com debounce — escala muito melhor
+  que filtrar no front-end.
+- **Validação de formulários**: títulos/valores obrigatórios conferidos antes de
+  enviar, com aviso amigável (eventos, notícias, produtos).
+- **Modo Desenvolvedor (dono do site)**: visual diferenciado — badge dourado
+  "DESENVOLVEDOR" na sidebar, barra "MODO DESENVOLVEDOR" no topo, borda dourada
+  e item exclusivo no menu. Fica óbvio quando você está na conta de dono.
+- **Painel do Dono** (menu lateral → "Painel do Dono"):
+  - Estatísticas do site (usuários, admins, produtos, notícias, mídias, eventos, equipes, inscrições, pedidos pendentes);
+  - Gestão de usuários: **promover** a admin, **revogar** admin e **excluir** conta (com confirmação dupla);
+  - Solicitações de administrador (aprovar/recusar) direto no painel;
+  - Moderação: apagar qualquer produto, notícia, mídia ou evento da plataforma.
+  - Tudo protegido no banco: as funções só executam para o dono (security definer + checagem is_owner).
 
 ## Publicar no GitHub Pages
 1. Suba todos os arquivos (`.html`, `.css`, `.js`, `.sql`, `.md`) na raiz de um repositório.

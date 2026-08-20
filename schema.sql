@@ -202,13 +202,16 @@ create table if not exists public.cart_items (
 --
 -- IMPORTANTE: o e-mail abaixo é reconhecido automaticamente como
 -- DONO DO SITE assim que essa pessoa criar a conta (vira admin E
--- dono, de cara, sem precisar de aprovação). Troque para o seu
--- e-mail antes de rodar este script.
+-- dono, de cara, sem precisar de aprovação).
+--
+-- E-mail do dono configurado: alfeu.paula@escola.pr.gov.br
+-- (se precisar trocar, altere aqui E no bloco de "conserto retroativo"
+-- mais abaixo, mantendo os dois iguais.)
 -- =========================================================
 create or replace function public.handle_new_user()
 returns trigger as $$
 declare
-  owner_email text := 'alfeuvlp@gmail.com';  -- <<< troque aqui se precisar
+  owner_email text := 'alfeu.paula@escola.pr.gov.br';  -- e-mail do dono do site
   is_the_owner boolean := (lower(new.email) = lower(owner_email));
   meta_name text := coalesce(
     new.raw_user_meta_data->>'full_name',  -- cadastro por e-mail (nós enviamos isso)
@@ -220,6 +223,9 @@ declare
     new.raw_user_meta_data->>'picture'     -- login com Google manda "picture"
   );
 begin
+  if lower(owner_email) = 'seu-email-dono@exemplo.com' then
+    raise exception 'schema.sql: configure o e-mail do dono em handle_new_user() antes de rodar.';
+  end if;
   insert into public.profiles (id, full_name, avatar_url, is_owner, is_admin)
   values (new.id, meta_name, meta_avatar, is_the_owner, is_the_owner)
   on conflict (id) do nothing;
@@ -236,11 +242,16 @@ create trigger on_auth_user_created
 -- de rodar esta versão do script, este bloco corrige seu perfil agora.
 do $$
 begin
+  -- se o e-mail ainda for o placeholder, não faz nada e avisa
+  if lower('alfeu.paula@escola.pr.gov.br') = 'seu-email-dono@exemplo.com' then
+    raise notice 'schema.sql: aviso — e-mail do dono ainda é o placeholder. Troque nas DUAS ocorrências e rode de novo.';
+    return;
+  end if;
   perform set_config('app.allow_admin_change', 'true', true);
   update public.profiles p
   set is_owner = true, is_admin = true
   from auth.users u
-  where p.id = u.id and lower(u.email) = lower('alfeuvlp@gmail.com');
+  where p.id = u.id and lower(u.email) = lower('alfeu.paula@escola.pr.gov.br');
 end $$;
 
 -- =========================================================
@@ -392,6 +403,138 @@ $$ language plpgsql security definer;
 grant execute on function public.reject_admin_request(uuid) to authenticated;
 
 -- =========================================================
+-- FUNÇÃO (RPC): public.grant_admin_access(target_user)
+-- Só o dono do site pode chamar. Promove um usuário a
+-- administrador diretamente (sem passar por pedido).
+-- =========================================================
+create or replace function public.grant_admin_access(target_user uuid)
+returns boolean as $$
+begin
+  if not public.is_owner() then
+    raise exception 'Somente o dono do site pode conceder acesso de administrador.';
+  end if;
+  perform set_config('app.allow_admin_change', 'true', true);
+  update public.profiles set is_admin = true where id = target_user;
+  return true;
+end;
+$$ language plpgsql security definer;
+
+grant execute on function public.grant_admin_access(uuid) to authenticated;
+
+-- =========================================================
+-- FUNÇÃO (RPC): public.revoke_admin_access(target_user)
+-- Só o dono do site pode chamar. Remove o privilégio de
+-- administrador de um usuário (ele volta a ser atleta).
+-- =========================================================
+create or replace function public.revoke_admin_access(target_user uuid)
+returns boolean as $$
+begin
+  if not public.is_owner() then
+    raise exception 'Somente o dono do site pode revogar administradores.';
+  end if;
+  if target_user = auth.uid() then
+    raise exception 'Você não pode revogar o próprio acesso de administrador.';
+  end if;
+  perform set_config('app.allow_admin_change', 'true', true);
+  update public.profiles set is_admin = false where id = target_user;
+  return true;
+end;
+$$ language plpgsql security definer;
+
+grant execute on function public.revoke_admin_access(uuid) to authenticated;
+
+-- =========================================================
+-- FUNÇÃO (RPC): public.delete_user(target_user)
+-- Só o dono do site pode chamar. Exclui uma conta por completo
+-- (usuário + perfil + tudo que ela criou, via cascade).
+-- Proteções: não exclui a si mesmo nem o dono do site.
+-- =========================================================
+create or replace function public.delete_user(target_user uuid)
+returns boolean as $$
+declare
+  target_is_owner boolean;
+begin
+  if not public.is_owner() then
+    raise exception 'Somente o dono do site pode excluir usuários.';
+  end if;
+  if target_user = auth.uid() then
+    raise exception 'Você não pode excluir a própria conta.';
+  end if;
+  select coalesce(is_owner, false) into target_is_owner
+  from public.profiles where id = target_user;
+  if target_is_owner then
+    raise exception 'Não é possível excluir o dono do site.';
+  end if;
+  delete from auth.users where id = target_user;
+  return true;
+end;
+$$ language plpgsql security definer;
+
+grant execute on function public.delete_user(uuid) to authenticated;
+
+-- =========================================================
+-- FUNÇÃO (RPC): public.get_site_stats()
+-- Só o dono do site pode chamar. Devolve um JSON com a
+-- contagem de tudo que existe na plataforma.
+-- =========================================================
+create or replace function public.get_site_stats()
+returns jsonb as $$
+declare
+  result jsonb;
+begin
+  if not public.is_owner() then
+    raise exception 'Somente o dono do site pode ver as estatísticas.';
+  end if;
+  select jsonb_build_object(
+    'users',            (select count(*) from public.profiles),
+    'admins',           (select count(*) from public.profiles where is_admin = true),
+    'products',         (select count(*) from public.products),
+    'news',             (select count(*) from public.news),
+    'media',            (select count(*) from public.media),
+    'media_likes',      (select count(*) from public.media_likes),
+    'events',           (select count(*) from public.events),
+    'enrollments',      (select count(*) from public.event_enrollments),
+    'teams',            (select count(*) from public.teams),
+    'cart_items',       (select count(*) from public.cart_items),
+    'pending_requests', (select count(*) from public.admin_requests where status = 'pending')
+  ) into result;
+  return result;
+end;
+$$ language plpgsql security definer;
+
+grant execute on function public.get_site_stats() to authenticated;
+
+-- =========================================================
+-- FUNÇÃO (RPC): public.get_all_users()
+-- Só o dono do site pode chamar. Lista todos os usuários
+-- com e-mail (auth.users), papel e data de cadastro.
+-- =========================================================
+create or replace function public.get_all_users()
+returns table (
+  id uuid,
+  email text,
+  full_name text,
+  role text,
+  is_admin boolean,
+  is_owner boolean,
+  created_at timestamptz
+) as $$
+begin
+  if not public.is_owner() then
+    raise exception 'Somente o dono do site pode ver a lista de usuários.';
+  end if;
+  return query
+    select p.id, u.email, p.full_name, p.role,
+           coalesce(p.is_admin, false), coalesce(p.is_owner, false), p.created_at
+    from public.profiles p
+    left join auth.users u on u.id = p.id
+    order by p.created_at desc;
+end;
+$$ language plpgsql security definer;
+
+grant execute on function public.get_all_users() to authenticated;
+
+-- =========================================================
 -- ROW LEVEL SECURITY (RLS)
 -- =========================================================
 alter table public.profiles enable row level security;
@@ -437,6 +580,11 @@ drop policy if exists "products_delete_own" on public.products;
 create policy "products_delete_own" on public.products
   for delete using (auth.uid() = seller_id and not public.is_guest());
 
+-- O dono do site pode apagar qualquer produto (moderação)
+drop policy if exists "products_delete_owner" on public.products;
+create policy "products_delete_owner" on public.products
+  for delete using (public.is_owner());
+
 -- ---- product_comments ----
 drop policy if exists "comments_select_public" on public.product_comments;
 create policy "comments_select_public" on public.product_comments for select using (true);
@@ -464,6 +612,11 @@ drop policy if exists "news_delete_own" on public.news;
 create policy "news_delete_own" on public.news
   for delete using (auth.uid() = author_id and not public.is_guest());
 
+-- O dono do site pode apagar qualquer notícia (moderação)
+drop policy if exists "news_delete_owner" on public.news;
+create policy "news_delete_owner" on public.news
+  for delete using (public.is_owner());
+
 -- ---- media ----
 drop policy if exists "media_select_public" on public.media;
 create policy "media_select_public" on public.media for select using (true);
@@ -476,6 +629,11 @@ create policy "media_insert_own_not_guest" on public.media
 drop policy if exists "media_delete_own" on public.media;
 create policy "media_delete_own" on public.media
   for delete using (auth.uid() = user_id and not public.is_guest());
+
+-- O dono do site pode apagar qualquer mídia (moderação)
+drop policy if exists "media_delete_owner" on public.media;
+create policy "media_delete_owner" on public.media
+  for delete using (public.is_owner());
 
 -- ---- media_likes ----
 drop policy if exists "likes_select_public" on public.media_likes;
@@ -506,6 +664,11 @@ create policy "events_update_own_admin" on public.events
 drop policy if exists "events_delete_own_admin" on public.events;
 create policy "events_delete_own_admin" on public.events
   for delete using (creator_id = auth.uid() and public.is_admin() and not public.is_guest());
+
+-- O dono do site pode apagar qualquer evento (moderação)
+drop policy if exists "events_delete_owner" on public.events;
+create policy "events_delete_owner" on public.events
+  for delete using (public.is_owner());
 
 -- ---- event_enrollments ----
 drop policy if exists "enroll_select_public" on public.event_enrollments;
@@ -553,6 +716,11 @@ create policy "teams_update_own_admin" on public.teams
 drop policy if exists "teams_delete_own_admin" on public.teams;
 create policy "teams_delete_own_admin" on public.teams
   for delete using (admin_id = auth.uid() and public.is_admin() and not public.is_guest());
+
+-- O dono do site pode apagar qualquer equipe (moderação)
+drop policy if exists "teams_delete_owner" on public.teams;
+create policy "teams_delete_owner" on public.teams
+  for delete using (public.is_owner());
 
 -- ---- admin_requests ----
 -- Cada um vê só o próprio pedido; o dono do site vê todos (pra aprovar).
