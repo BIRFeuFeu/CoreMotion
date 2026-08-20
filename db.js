@@ -49,6 +49,21 @@ async function dbGetProducts(){
   return data;
 }
 
+// Busca no banco (título, descrição ou categoria) — usada na barra de
+// pesquisa do Marketplace. Bem mais escalável que filtrar no front-end.
+async function dbSearchProducts(query){
+  const q = String(query || "").trim();
+  if(!q) return dbGetProducts();
+  const { data, error } = await sb
+    .from("products")
+    .select("*, profiles ( full_name )")
+    .or(`title.ilike.%${q}%,description.ilike.%${q}%,category.ilike.%${q}%`)
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if(error) throw error;
+  return data;
+}
+
 async function dbDeleteProduct(id){
   const { error } = await sb.from("products").delete().eq("id", id);
   if(error) throw error;

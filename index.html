@@ -5,9 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CoreMotion — Sua jornada esportiva elevada</title>
 <link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+
+<!-- Aviso exibido quando o Supabase ainda não foi configurado (aparece via JS) -->
+<div id="setup-banner" class="setup-banner hidden" role="alert">
+  <span class="setup-banner-icon" data-icon="alert-triangle"></span>
+  <div class="setup-banner-text">
+    <strong>Supabase ainda não configurado.</strong>
+    Abra <code>supabase-client.js</code>, cole suas chaves (Project URL + anon key)
+    ou rode no console do navegador:
+    <code>configureSupabase("URL", "CHAVE")</code>
+  </div>
+  <button class="setup-banner-close" id="setup-banner-close" aria-label="Fechar aviso">&times;</button>
+</div>
 
 <!-- ======================= LANDING PAGE ======================= -->
 <div id="page-landing">
@@ -280,6 +291,9 @@
 
 <!-- ======================= DASHBOARD (APP) ======================= -->
 <div id="page-dashboard" class="hidden">
+  <div class="sidebar-backdrop hidden" id="sidebar-backdrop"></div>
+  <button class="mobile-menu-btn" id="btn-mobile-menu" data-icon="menu" aria-label="Abrir menu"></button>
+
   <aside class="sidebar" id="sidebar">
     <button class="collapse-btn" id="collapse-btn" data-icon="chevron-right"></button>
 
@@ -388,10 +402,6 @@
       <div class="media-grid hidden" id="midia-grid" data-list></div>
       <input type="file" id="midia-input" accept="image/*,video/*" class="hidden">
       <button class="fab" id="fab-midia" data-icon="plus" aria-label="Adicionar mídia"></button>
-      <div class="toast hidden" id="toast-midia">
-        <span class="icon-inline" data-icon="alert-circle"></span>
-        <span>Erro ao carregar mídia</span>
-      </div>
     </section>
 
     <!-- ---- VIEW: AGENDA ---- -->
@@ -946,7 +956,9 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js"></script>
+<script src="toast.js"></script>
 <script src="auth.js"></script>
 <script src="db.js"></script>
 <script src="script.js"></script>

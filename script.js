@@ -37,6 +37,9 @@ const ICONS = {
   message: `<path d="M4 4h16v12H8l-4 4V4z"/>`,
   flag: `<path d="M5 3v18"/><path d="M5 4h13l-3 4 3 4H5"/>`,
   edit: `<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>`,
+  menu: `<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>`,
+  "x": `<line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/>`,
+  image: `<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/>`,
 };
 
 function renderIcons(root = document){
@@ -48,6 +51,20 @@ function renderIcons(root = document){
   });
 }
 renderIcons();
+
+/* =========================================================
+   SETUP — avisa quando o Supabase ainda não está configurado
+   ========================================================= */
+(function setupBanner(){
+  if(window.SUPABASE_CONFIGURED) return;
+  const banner = document.getElementById("setup-banner");
+  if(!banner) return;
+  banner.classList.remove("hidden");
+  const closeBtn = document.getElementById("setup-banner-close");
+  if(closeBtn){
+    closeBtn.addEventListener("click", ()=> banner.classList.add("hidden"));
+  }
+})();
 
 /* =========================================================
    ESTADO GLOBAL
@@ -64,11 +81,11 @@ let currentTeam = null;     // equipe do admin logado (Equipe > painel do admin)
 /* Bloqueia uma ação para contas convidado. Retorna true se bloqueou. */
 function guestBlock(){
   if(isGuest){
-    alert("Essa ação exige uma conta com e-mail. Crie uma conta gratuita para continuar.");
+    showToast("Essa ação exige uma conta com e-mail. Crie uma conta gratuita para continuar.", "warn");
     return true;
   }
   if(!currentUser){
-    alert("Faça login para continuar.");
+    showToast("Faça login para continuar.", "warn");
     return true;
   }
   return false;
@@ -78,7 +95,7 @@ function guestBlock(){
 function adminBlock(){
   if(guestBlock()) return true;
   if(!isAdminAccount){
-    alert("Essa ação é exclusiva de contas administradoras. Ative uma conta admin em Configurações.");
+    showToast("Essa ação é exclusiva de contas administradoras. Ative uma conta admin em Configurações.", "warn");
     return true;
   }
   return false;
@@ -157,11 +174,73 @@ document.getElementById("btn-demo").addEventListener("click", () => setLandingTa
 /* =========================================================
    HELPERS DE MODAL GENÉRICOS (com animação de entrada/saída)
    ========================================================= */
+
+// Elementos focáveis dentro de um modal (para travar o foco).
+// Considera "visível" o que não está dentro de um contêiner .hidden/[hidden].
+function getFocusables(el){
+  return Array.from(el.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )).filter(node => !node.closest(".hidden, [hidden]"));
+}
+
+let lastFocusedElement = null;
+
+function trapFocus(el){
+  const onKey = (e)=>{
+    // Esc fecha o modal (ouvido no document: funciona mesmo se o foco escapar)
+    if(e.key === "Escape"){
+      e.preventDefault();
+      closeOverlayEl(el);
+      return;
+    }
+    if(e.key !== "Tab") return;
+    if(!el.contains(document.activeElement)) return; // foco fora do modal: não interfere
+    const items = getFocusables(el);
+    if(!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if(e.shiftKey && document.activeElement === first){
+      e.preventDefault();
+      last.focus();
+    }else if(!e.shiftKey && document.activeElement === last){
+      e.preventDefault();
+      first.focus();
+    }
+  };
+  document.addEventListener("keydown", onKey);
+  el._trapHandler = onKey;
+}
+
+function setPageInert(inert){
+  ["page-landing", "page-dashboard"].forEach(pid=>{
+    const node = document.getElementById(pid);
+    if(!node) return;
+    if(inert) node.setAttribute("inert", "");
+    else node.removeAttribute("inert");
+  });
+}
+
 function openOverlay(id){
   const el = document.getElementById(id);
+  if(!el) return;
   el.classList.remove("closing");
   el.classList.remove("hidden");
   document.body.style.overflow = "hidden";
+
+  // Acessibilidade: marca como dialog e prende o foco dentro
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-modal", "true");
+  if(!el.hasAttribute("aria-label")){
+    const heading = el.querySelector("h1, h2, h3");
+    if(heading && heading.textContent.trim()){
+      el.setAttribute("aria-label", heading.textContent.trim());
+    }
+  }
+  lastFocusedElement = document.activeElement;
+  trapFocus(el);
+  setPageInert(true);
+  const first = getFocusables(el)[0];
+  if(first) first.focus();
 }
 // Fecha com uma pequena animação de saída antes de sumir de vez.
 function closeOverlayEl(el){
@@ -171,6 +250,11 @@ function closeOverlayEl(el){
     el.classList.add("hidden");
     el.classList.remove("closing");
     document.body.style.overflow = "";
+    if(el._trapHandler) document.removeEventListener("keydown", el._trapHandler);
+    el._trapHandler = null;
+    setPageInert(false);
+    if(lastFocusedElement && lastFocusedElement.isConnected) lastFocusedElement.focus();
+    lastFocusedElement = null;
   };
   // se o navegador não disparar o evento por algum motivo, garante o fechamento
   let done = false;
@@ -205,6 +289,47 @@ function hideFormError(id){
   document.getElementById(id).classList.add("hidden");
 }
 
+/* Valida um campo obrigatório (ignora só espaços) e devolve o valor limpo.
+   Se estiver vazio, mostra um toast e foca no campo. */
+function requiredField(input, label){
+  const v = (input && input.value) ? input.value.trim() : "";
+  if(!v){
+    showToast(`Preencha o campo "${label}".`, "warn");
+    if(input) input.focus();
+    return null;
+  }
+  return v;
+}
+
+/* Preenche a grade com "skeletons" (placeholders animados) durante o
+   carregamento — bem melhor que um spinner sozinho. */
+function showSkeleton(grid, count = 6, mediaRatio = "4/3"){
+  if(!grid) return;
+  grid.innerHTML = Array.from({ length: count }).map(()=> `
+    <div class="skeleton-card" aria-hidden="true">
+      <div class="skeleton-media shimmer" style="aspect-ratio:${mediaRatio}"></div>
+      <div class="skeleton-line shimmer" style="width:72%"></div>
+      <div class="skeleton-line shimmer" style="width:45%"></div>
+    </div>`).join("");
+  grid.classList.remove("hidden");
+}
+
+/* Monta um background-image seguro: evita url('') quebrada quando não há imagem */
+function safeBg(gradient, url){
+  return url ? `${gradient}, url('${url}')` : gradient;
+}
+
+/* Fallback quando uma imagem de mídia falha ao carregar (arquivo apagado, link quebrado) */
+window.mediaImgError = function(img){
+  if(!img || !img.parentElement) return;
+  img.onerror = null;
+  const ph = document.createElement("div");
+  ph.className = "media-tile-ph";
+  ph.innerHTML = '<span class="icon-inline" data-icon="image"></span>';
+  img.replaceWith(ph);
+  renderIcons(ph);
+};
+
 /* =========================================================
    AUTH MODAL (login / cadastro)
    ========================================================= */
@@ -238,8 +363,8 @@ document.getElementById("btn-google").addEventListener("click", async ()=>{
     // a página é redirecionada pro Google agora; o resto acontece
     // sozinho quando ela voltar (authOnChange detecta a sessão).
   }catch(err){
-    alert("Não foi possível iniciar o login com Google: " + err.message +
-      "\n\nAtive o provedor Google em Authentication > Providers no seu projeto Supabase.");
+    showToast("Não foi possível iniciar o login com Google: " + traduzErro(err.message) +
+      " — Ative o provedor Google em Authentication > Providers no seu projeto Supabase.", "error");
   }
 });
 
@@ -308,7 +433,10 @@ document.getElementById("form-criar").addEventListener("submit", async e=>{
   try{
     const data = await authSignUp(email, senha, nome);
     if(!data.session){
-      showFormError("signup-error", "Conta criada! Verifique seu e-mail para confirmar o cadastro antes de entrar.");
+      // Sem sessão = a confirmação por e-mail está ATIVA no projeto.
+      // (No beta configuramos o login direto — com "Confirm email" desligado
+      // o Supabase já devolve sessão aqui e o login acontece sozinho.)
+      showFormError("signup-error", "Conta criada! A verificação por e-mail está ativa neste projeto — confirme o link enviado para o seu e-mail e depois entre normalmente.");
     }
     // Se a confirmação por e-mail estiver desativada no projeto,
     // o Supabase já devolve sessão e onAuthStateChange loga automaticamente.
@@ -324,23 +452,36 @@ document.getElementById("btn-conta-teste").addEventListener("click", async ()=>{
   try{
     await authSignInTeste();
   }catch(err){
-    alert("Não foi possível entrar com a conta de teste: " + err.message +
-      "\n\nAtive 'Anonymous Sign-ins' em Authentication > Providers no seu projeto Supabase.");
+    showToast("Conta de teste indisponível: " + traduzErro(err.message) +
+      " — Confira se 'Anonymous Sign-ins' está ativado em Authentication > Providers.", "error");
   }
 });
 
 function traduzErro(msg){
+  if(!msg) return "Erro desconhecido.";
+  if(/invalid api key/i.test(msg)) return "Chave do Supabase inválida. Confira sua anon key em supabase-client.js.";
   if(/invalid login credentials/i.test(msg)) return "E-mail ou senha incorretos.";
   if(/already registered/i.test(msg)) return "Este e-mail já está cadastrado.";
+  if(/email not confirmed/i.test(msg)) return "Confirme seu e-mail antes de entrar (veja sua caixa de entrada).";
+  if(/rate limit|too many requests/i.test(msg)) return "Muitas tentativas seguidas. Aguarde um instante e tente de novo.";
+  if(/network|fetch|failed to fetch/i.test(msg)) return "Sem conexão com o servidor. Verifique sua internet.";
+  if(/supabase ainda não configurado/i.test(msg)) return "Supabase não configurado: abra supabase-client.js e cole suas chaves.";
   return msg;
 }
 
 /* =========================================================
    SESSÃO — reage a login/logout em qualquer parte do app
    ========================================================= */
+let wasLoggedIn = false;
 authOnChange(async (session)=>{
   currentUser = session ? session.user : null;
   isGuest = authIsGuest(currentUser);
+
+  // Sessão caiu sozinha (token expirou) — avisa em vez de falhar silenciosamente
+  if(!currentUser && wasLoggedIn){
+    showToast("Sua sessão expirou. Entre novamente para continuar.", "warn");
+  }
+  wasLoggedIn = !!currentUser;
 
   if(currentUser){
     closeAuth();
@@ -355,6 +496,7 @@ authOnChange(async (session)=>{
       currentProfile = null;
     }
     isAdminAccount = !isGuest && !!(currentProfile && currentProfile.is_admin);
+    isSiteOwner = !isGuest && !!(currentProfile && currentProfile.is_owner);
 
     if(isGuest){
       // Convidado nunca passa pelo onboarding — perfil fixo, somente leitura.
@@ -379,9 +521,13 @@ authOnChange(async (session)=>{
 
 // Ao carregar a página, verifica se já existe uma sessão salva
 (async ()=>{
-  const session = await authGetSession();
-  if(session){
-    currentUser = session.user;
+  try{
+    const session = await authGetSession();
+    if(session){
+      currentUser = session.user;
+    }
+  }catch(err){
+    console.warn("Falha ao verificar sessão inicial:", err.message);
   }
 })();
 
@@ -427,7 +573,7 @@ document.getElementById("ob-avatar-input").addEventListener("change", e=>{
 });
 
 document.getElementById("btn-concluir-cadastro").addEventListener("click", async ()=>{
-  if(!currentUser){ alert("Sessão expirada, faça login novamente."); return; }
+  if(!currentUser){ showToast("Sessão expirada, faça login novamente."); return; }
   const btn = document.getElementById("btn-concluir-cadastro");
   btn.disabled = true;
   btn.textContent = "SALVANDO...";
@@ -459,7 +605,7 @@ document.getElementById("btn-concluir-cadastro").addEventListener("click", async
     closeOverlay("modal-onboarding");
     switchView("inicio");
   }catch(err){
-    alert("Erro ao salvar perfil: " + err.message);
+    showToast("Erro ao salvar perfil: " + err.message);
   }finally{
     btn.disabled = false;
     btn.textContent = "CONCLUIR CADASTRO";
@@ -491,6 +637,8 @@ function applyProfileToUI(profile){
       el.style.backgroundSize = "cover";
       el.style.backgroundPosition = "center";
       el.innerHTML = "";
+    }else{
+      el.style.backgroundImage = "";
     }
   });
 
@@ -530,6 +678,39 @@ document.getElementById("btn-editar-perfil").addEventListener("click", ()=>{
 const dashboardRoot = document.getElementById("page-dashboard");
 const sidebar = document.getElementById("sidebar");
 
+/* ---- menu mobile (drawer) ---- */
+const mobileMenuBtn = document.getElementById("btn-mobile-menu");
+const sidebarBackdrop = document.getElementById("sidebar-backdrop");
+
+function openMobileSidebar(){
+  if(!sidebar) return;
+  sidebar.classList.add("open");
+  if(sidebarBackdrop) sidebarBackdrop.classList.remove("hidden");
+  mobileMenuBtn.setAttribute("aria-expanded", "true");
+  mobileMenuBtn.setAttribute("aria-label", "Fechar menu");
+  mobileMenuBtn.dataset.icon = "x";
+  mobileMenuBtn.dataset.iconRendered = "";
+  renderIcons(mobileMenuBtn);
+}
+function closeMobileSidebar(){
+  if(!sidebar) return;
+  sidebar.classList.remove("open");
+  if(sidebarBackdrop) sidebarBackdrop.classList.add("hidden");
+  mobileMenuBtn.setAttribute("aria-expanded", "false");
+  mobileMenuBtn.setAttribute("aria-label", "Abrir menu");
+  mobileMenuBtn.dataset.icon = "menu";
+  mobileMenuBtn.dataset.iconRendered = "";
+  renderIcons(mobileMenuBtn);
+}
+if(mobileMenuBtn){
+  mobileMenuBtn.addEventListener("click", ()=>{
+    sidebar.classList.contains("open") ? closeMobileSidebar() : openMobileSidebar();
+  });
+}
+if(sidebarBackdrop){
+  sidebarBackdrop.addEventListener("click", closeMobileSidebar);
+}
+
 function switchView(view){
   document.querySelectorAll("[data-view-panel]").forEach(p=>{
     p.classList.toggle("hidden", p.id !== `view-${view}`);
@@ -540,9 +721,10 @@ function switchView(view){
   if(view === "noticias") loadNoticias();
   if(view === "midia") loadMidia();
   if(view === "agenda") loadEventos();
-  if(view === "marketplace") loadProdutos();
+  if(view === "marketplace") loadProdutos(document.getElementById("marketplace-search")?.value || "");
   if(view === "equipe") loadEquipe();
   if(view === "config") loadAccountStatus();
+  if(window.innerWidth <= 720) closeMobileSidebar();
 }
 document.querySelectorAll(".side-item[data-view]").forEach(btn=>{
   btn.addEventListener("click", ()=> switchView(btn.dataset.view));
@@ -584,9 +766,9 @@ async function loadEventos(){
   const loader = view.querySelector("[data-loader]");
   const empty = view.querySelector("[data-empty]");
   const grid = document.getElementById("events-grid");
-  loader.classList.remove("hidden");
+  loader.classList.add("hidden");
   empty.classList.add("hidden");
-  grid.classList.add("hidden");
+  showSkeleton(grid, 6, "4/3");
 
   try{
     const events = await dbGetEvents();
@@ -637,7 +819,7 @@ async function loadEventos(){
           else await dbEnrollEvent(eventId, currentUser.id);
           loadEventos();
         }catch(err){
-          alert("Erro: " + err.message);
+          showToast("Erro: " + err.message);
           btn.disabled = false;
         }
       });
@@ -649,7 +831,7 @@ async function loadEventos(){
         try{
           await dbDeleteEvent(btn.dataset.deleteEventId);
           loadEventos();
-        }catch(err){ alert("Erro ao apagar: " + err.message); }
+        }catch(err){ showToast("Erro ao apagar: " + err.message); }
       });
     });
   }catch(err){
@@ -668,11 +850,13 @@ document.getElementById("form-evento").addEventListener("submit", async e=>{
   e.preventDefault();
   if(adminBlock()) return;
   const btn = e.target.querySelector("button[type=submit]");
+  const titulo = requiredField(document.getElementById("ev-titulo"), "Título do evento");
+  if(titulo === null) return;
   btn.disabled = true;
   try{
     const dataInput = document.getElementById("ev-data").value;
     await dbCreateEvent({
-      title: document.getElementById("ev-titulo").value.trim(),
+      title: titulo,
       type: document.getElementById("ev-tipo").value,
       sport: document.getElementById("ev-esporte").value.trim(),
       description: document.getElementById("ev-descricao").value.trim(),
@@ -685,7 +869,7 @@ document.getElementById("form-evento").addEventListener("submit", async e=>{
     closeOverlay("modal-evento");
     loadEventos();
   }catch(err){
-    alert("Erro ao criar evento: " + err.message);
+    showToast("Erro ao criar evento: " + err.message);
   }finally{
     btn.disabled = false;
   }
@@ -697,22 +881,34 @@ async function loadNoticias(){
   const loader = view.querySelector("[data-loader]");
   const empty = view.querySelector("[data-empty]");
   const grid = document.getElementById("noticias-grid");
-  loader.classList.remove("hidden");
+  loader.classList.add("hidden");
   empty.classList.add("hidden");
-  grid.classList.add("hidden");
+  showSkeleton(grid, 6, "4/3");
 
   try{
     const items = await dbGetNews();
-    loader.classList.add("hidden");
     if(!items.length){
       empty.classList.remove("hidden");
       return;
     }
-    grid.innerHTML = items.map(n => `
-      <div class="news-card" style="background-image:linear-gradient(rgba(0,0,0,.15),rgba(0,0,0,.55)), url('${n.image_url || ""}');background-size:cover;background-position:center;">
-        <span class="news-badge">${n.category || "Geral"}</span>
-      </div>
-    `).join("");
+    grid.innerHTML = items.map(n => {
+      const dateLabel = n.created_at
+        ? new Date(n.created_at).toLocaleDateString("pt-BR", { day:"2-digit", month:"short", year:"numeric" })
+        : "";
+      const author = (n.profiles && n.profiles.full_name) ? n.profiles.full_name : "";
+      const content = n.content || "";
+      const snippet = content.length > 110 ? content.slice(0, 110) + "…" : content;
+      const meta = [author, dateLabel].filter(Boolean).join(" · ");
+      return `
+        <div class="news-card" style="background-image:${safeBg("linear-gradient(rgba(0,0,0,.15),rgba(0,0,0,.55))", n.image_url)};background-size:cover;background-position:center;">
+          <span class="news-badge">${escapeHtml(n.category || "Geral")}</span>
+          <div class="news-card-body">
+            <h4>${escapeHtml(n.title || "Sem título")}</h4>
+            ${snippet ? `<p>${escapeHtml(snippet)}</p>` : ""}
+            ${meta ? `<span class="news-card-meta">${escapeHtml(meta)}</span>` : ""}
+          </div>
+        </div>`;
+    }).join("");
     grid.classList.remove("hidden");
     staggerChildren(grid);
   }catch(err){
@@ -730,6 +926,8 @@ document.getElementById("btn-nova-noticia").addEventListener("click", ()=>{
 document.getElementById("form-noticia").addEventListener("submit", async e=>{
   e.preventDefault();
   const btn = e.target.querySelector("button[type=submit]");
+  const titulo = requiredField(document.getElementById("news-titulo"), "Título da notícia");
+  if(titulo === null) return;
   btn.disabled = true;
   try{
     const file = document.getElementById("news-imagem").files[0];
@@ -738,7 +936,7 @@ document.getElementById("form-noticia").addEventListener("submit", async e=>{
 
     await dbCreateNews({
       author_id: currentUser.id,
-      title: document.getElementById("news-titulo").value.trim(),
+      title: titulo,
       category: document.getElementById("news-categoria").value.trim(),
       content: document.getElementById("news-conteudo").value.trim(),
       image_url
@@ -748,7 +946,7 @@ document.getElementById("form-noticia").addEventListener("submit", async e=>{
     closeOverlay("modal-noticia");
     loadNoticias();
   }catch(err){
-    alert("Erro ao publicar notícia: " + err.message);
+    showToast("Erro ao publicar notícia: " + err.message);
   }finally{
     btn.disabled = false;
   }
@@ -803,7 +1001,7 @@ async function loadMinhaEquipe(){
     document.getElementById("team-contato").value = currentTeam?.contact || "";
     document.getElementById("team-cor").value = currentTeam?.primary_color || "#e5383b";
   }catch(err){
-    alert("Erro ao carregar sua equipe: " + err.message);
+    showToast("Erro ao carregar sua equipe: " + err.message);
   }
 }
 
@@ -851,10 +1049,10 @@ document.getElementById("form-equipe").addEventListener("submit", async e=>{
       await dbUpsertProfile({ id: currentUser.id, team_id: currentTeam.id });
       currentProfile = await dbGetProfile(currentUser.id);
     }
-    alert("Página da equipe salva!");
+    showToast("Página da equipe salva!", "success");
     await loadMinhaEquipe();
   }catch(err){
-    alert("Erro ao salvar a equipe: " + err.message);
+    showToast("Erro ao salvar a equipe: " + err.message);
   }finally{
     btn.disabled = false;
     btn.textContent = "Salvar Página da Equipe";
@@ -862,7 +1060,7 @@ document.getElementById("form-equipe").addEventListener("submit", async e=>{
 });
 
 document.getElementById("btn-ver-minha-equipe").addEventListener("click", ()=>{
-  if(!currentTeam){ alert("Salve as informações da sua equipe primeiro."); return; }
+  if(!currentTeam){ showToast("Salve as informações da sua equipe primeiro.", "info"); return; }
   renderTeamPublicModal(currentTeam);
   openOverlay("modal-equipe-publica");
 });
@@ -871,27 +1069,28 @@ async function loadListaEquipes(){
   const loader = document.querySelector("[data-loader-equipe]");
   const empty = document.querySelector("[data-empty-equipe]");
   const grid = document.getElementById("teams-grid");
-  loader.classList.remove("hidden");
+  loader.classList.add("hidden");
   empty.classList.add("hidden");
-  grid.classList.add("hidden");
+  showSkeleton(grid, 6, "16/10");
   try{
     const teams = await dbGetTeams();
-    loader.classList.add("hidden");
     if(!teams.length){
       empty.classList.remove("hidden");
       return;
     }
-    grid.innerHTML = teams.map(t => `
+    grid.innerHTML = teams.map(t => {
+      const logoBg = t.logo_url ? `style="background-image:url('${t.logo_url}')"` : "";
+      return `
       <div class="team-card" data-team-id="${t.id}">
-        <div class="team-card-logo" style="background-image:url('${t.logo_url || ""}')" data-icon="${t.logo_url ? "" : "flag"}"></div>
+        <div class="team-card-logo" ${logoBg} data-icon="${t.logo_url ? "" : "flag"}"></div>
         <div class="team-card-body">
           <h4>${t.name}</h4>
           <span class="tag-judo">${t.sport || "Geral"}</span>
           <p>${t.tagline || t.description || ""}</p>
           <button class="btn btn-dark btn-block" data-ver-equipe="${t.id}">Ver Página</button>
         </div>
-      </div>
-    `).join("");
+      </div>`;
+    }).join("");
     renderIcons(grid);
     grid.classList.remove("hidden");
     staggerChildren(grid);
@@ -971,9 +1170,9 @@ document.getElementById("form-admin-request").addEventListener("submit", async e
     );
     e.target.reset();
     await loadAccountStatus();
-    alert("Solicitação enviada! O dono do site vai revisar e você recebe acesso assim que for aprovada.");
+    showToast("Solicitação enviada! O dono do site vai revisar e você recebe acesso assim que for aprovada.", "success");
   }catch(err){
-    alert("Erro ao enviar solicitação: " + err.message);
+    showToast("Erro ao enviar solicitação: " + err.message);
   }finally{
     btn.disabled = false;
   }
@@ -1011,7 +1210,7 @@ async function loadOwnerRequests(){
         try{
           await dbApproveAdminRequest(btn.dataset.approve);
           await loadOwnerRequests();
-        }catch(err){ alert("Erro ao aprovar: " + err.message); btn.disabled = false; }
+        }catch(err){ showToast("Erro ao aprovar: " + err.message); btn.disabled = false; }
       });
     });
     list.querySelectorAll("[data-reject]").forEach(btn=>{
@@ -1021,7 +1220,7 @@ async function loadOwnerRequests(){
         try{
           await dbRejectAdminRequest(btn.dataset.reject);
           await loadOwnerRequests();
-        }catch(err){ alert("Erro ao recusar: " + err.message); btn.disabled = false; }
+        }catch(err){ showToast("Erro ao recusar: " + err.message); btn.disabled = false; }
       });
     });
   }catch(err){
@@ -1041,13 +1240,12 @@ async function loadMidia(){
   const loader = view.querySelector("[data-loader]");
   const empty = view.querySelector("[data-empty]");
   const grid = document.getElementById("midia-grid");
-  loader.classList.remove("hidden");
+  loader.classList.add("hidden");
   empty.classList.add("hidden");
-  grid.classList.add("hidden");
+  showSkeleton(grid, 8, "4/5");
 
   try{
     const items = await dbGetMedia();
-    loader.classList.add("hidden");
     if(!items.length){
       empty.classList.remove("hidden");
       return;
@@ -1058,9 +1256,12 @@ async function loadMidia(){
       const likeCount = await dbGetMediaLikes(m.id).catch(()=>0);
       const tile = document.createElement("div");
       tile.className = "media-tile";
-      const mediaTag = m.media_type === "video"
-        ? `<video src="${m.url}" controls></video>`
-        : `<img src="${m.url}" alt="mídia">`;
+      const hasUrl = !!m.url;
+      const mediaTag = !hasUrl
+        ? `<div class="media-tile-ph"><span class="icon-inline" data-icon="image"></span></div>`
+        : (m.media_type === "video"
+            ? `<video src="${m.url}" controls preload="metadata"></video>`
+            : `<img src="${m.url}" alt="${escapeHtml(m.caption || "Mídia do CoreMotion")}" loading="lazy" onerror="mediaImgError(this)">`);
       const isOwner = currentUser && m.user_id === currentUser.id && !isGuest;
       tile.innerHTML = `
         ${mediaTag}
@@ -1081,7 +1282,7 @@ async function loadMidia(){
         try{
           await dbDeleteMedia(btn.dataset.mediaId);
           loadMidia();
-        }catch(err){ alert("Erro ao excluir: " + err.message); }
+        }catch(err){ showToast("Erro ao excluir: " + err.message); }
       });
     });
     grid.querySelectorAll(".media-like-btn").forEach(btn=>{
@@ -1093,7 +1294,7 @@ async function loadMidia(){
           btn.classList.toggle("liked");
           const countEl = btn.querySelector(".like-count");
           countEl.textContent = Number(countEl.textContent) + (liked ? -1 : 1);
-        }catch(err){ alert(err.message); }
+        }catch(err){ showToast(err.message); }
       });
     });
   }catch(err){
@@ -1148,29 +1349,30 @@ document.getElementById("form-midia").addEventListener("submit", async e=>{
 /* =========================================================
    MARKETPLACE — produtos e comentários
    ========================================================= */
-async function loadProdutos(){
+async function loadProdutos(query){
   const view = document.getElementById("view-marketplace");
   const loader = view.querySelector("[data-loader]");
   const empty = view.querySelector("[data-empty]");
   const grid = document.getElementById("produtos-grid");
-  loader.classList.remove("hidden");
+  loader.classList.add("hidden");
   empty.classList.add("hidden");
-  grid.classList.add("hidden");
+  showSkeleton(grid, 6, "4/3");
 
   try{
-    const items = await dbGetProducts();
-    loader.classList.add("hidden");
+    const q = (query || "").trim();
+    const items = q ? await dbSearchProducts(q) : await dbGetProducts();
     if(!items.length){
+      empty.textContent = q ? `Nada encontrado para "${q}".` : "Nenhum produto encontrado.";
       empty.classList.remove("hidden");
       return;
     }
     grid.innerHTML = items.map(p => `
       <div class="product-card light" data-product-id="${p.id}">
-        <div class="product-image" style="background-image:linear-gradient(rgba(0,0,0,.1),rgba(0,0,0,.25)), url('${p.image_url || ""}');background-size:cover;background-position:center;">
-          <span class="product-badge">${p.category || "Geral"}</span>
+        <div class="product-image" style="background-image:${safeBg("linear-gradient(rgba(0,0,0,.1),rgba(0,0,0,.25))", p.image_url)};background-size:cover;background-position:center;">
+          <span class="product-badge">${escapeHtml(p.category || "Geral")}</span>
         </div>
         <div class="product-body">
-          <h4>${p.title}</h4>
+          <h4>${escapeHtml(p.title)}</h4>
           <div class="product-row">
             <span class="price">R$ ${Number(p.price).toFixed(2).replace(".", ",")}</span>
             <span class="stars">★★★</span>
@@ -1191,12 +1393,13 @@ async function loadProdutos(){
   }
 }
 
+// Busca com debounce (300ms) direto no banco — escala melhor que filtrar
+// no front-end e procura também em descrição e categoria.
+let marketplaceSearchTimer = null;
 document.getElementById("marketplace-search").addEventListener("input", e=>{
-  const q = e.target.value.toLowerCase();
-  document.querySelectorAll("#produtos-grid .product-card").forEach(card=>{
-    const title = card.querySelector("h4").textContent.toLowerCase();
-    card.style.display = title.includes(q) ? "" : "none";
-  });
+  clearTimeout(marketplaceSearchTimer);
+  const q = e.target.value.trim();
+  marketplaceSearchTimer = setTimeout(()=> loadProdutos(q), 300);
 });
 
 document.getElementById("btn-vender-produto").addEventListener("click", ()=>{
@@ -1207,6 +1410,14 @@ document.getElementById("btn-vender-produto").addEventListener("click", ()=>{
 document.getElementById("form-produto").addEventListener("submit", async e=>{
   e.preventDefault();
   const btn = e.target.querySelector("button[type=submit]");
+  const titulo = requiredField(document.getElementById("prod-titulo"), "Título do produto");
+  if(titulo === null) return;
+  const price = parseFloat(document.getElementById("prod-preco").value);
+  if(!Number.isFinite(price) || price < 0){
+    showToast("Informe um preço válido (maior ou igual a zero).", "warn");
+    btn.disabled = false;
+    return;
+  }
   btn.disabled = true;
   try{
     const file = document.getElementById("prod-imagem").files[0];
@@ -1215,8 +1426,8 @@ document.getElementById("form-produto").addEventListener("submit", async e=>{
 
     await dbCreateProduct({
       seller_id: currentUser.id,
-      title: document.getElementById("prod-titulo").value.trim(),
-      price: parseFloat(document.getElementById("prod-preco").value),
+      title: titulo,
+      price,
       category: document.getElementById("prod-categoria").value.trim(),
       description: document.getElementById("prod-descricao").value.trim(),
       image_url
@@ -1226,7 +1437,7 @@ document.getElementById("form-produto").addEventListener("submit", async e=>{
     closeOverlay("modal-produto");
     loadProdutos();
   }catch(err){
-    alert("Erro ao publicar produto: " + err.message);
+    showToast("Erro ao publicar produto: " + err.message);
   }finally{
     btn.disabled = false;
   }
@@ -1282,7 +1493,7 @@ document.getElementById("form-comentario").addEventListener("submit", async e=>{
     input.value = "";
     await loadComentarios(activeProductId);
   }catch(err){
-    alert("Erro ao comentar: " + err.message);
+    showToast("Erro ao comentar: " + err.message);
   }
 });
 
@@ -1295,9 +1506,9 @@ document.getElementById("btn-add-carrinho").addEventListener("click", async ()=>
   try{
     await dbAddToCart(currentUser.id, activeProductId);
     await updateCartBadge();
-    alert("Produto adicionado ao carrinho!");
+    showToast("Produto adicionado ao carrinho!", "success");
   }catch(err){
-    alert("Erro ao adicionar ao carrinho: " + err.message);
+    showToast("Erro ao adicionar ao carrinho: " + err.message);
   }
 });
 
@@ -1323,9 +1534,10 @@ async function loadCarrinho(){
       const p = item.products;
       const subtotal = (p?.price || 0) * item.quantity;
       total += subtotal;
+      const imgBg = p?.image_url ? `background-image:url('${p.image_url}')` : "";
       return `
         <div class="cart-item">
-          <div class="cart-item-img" style="background-image:url('${p?.image_url || ""}')"></div>
+          <div class="cart-item-img" style="${imgBg}"></div>
           <div class="cart-item-info">
             <strong>${p?.title || "Produto"}</strong>
             <span>Qtd: ${item.quantity} · R$ ${Number(subtotal).toFixed(2).replace(".", ",")}</span>
@@ -1341,7 +1553,7 @@ async function loadCarrinho(){
           await dbRemoveFromCart(btn.dataset.cartId);
           await loadCarrinho();
           await updateCartBadge();
-        }catch(err){ alert(err.message); }
+        }catch(err){ showToast(err.message); }
       });
     });
   }catch(err){
@@ -1355,10 +1567,10 @@ document.getElementById("btn-finalizar-compra").addEventListener("click", async 
     await dbClearCart(currentUser.id);
     await loadCarrinho();
     await updateCartBadge();
-    alert("Compra finalizada com sucesso! 🎉");
+    showToast("Compra finalizada com sucesso! 🎉", "success");
     closeOverlay("modal-carrinho");
   }catch(err){
-    alert("Erro ao finalizar compra: " + err.message);
+    showToast("Erro ao finalizar compra: " + err.message);
   }
 });
 
@@ -1383,19 +1595,9 @@ async function updateCartBadge(){
   }
 }
 
-/* Toast simples (já existia no HTML da view Mídia, sem uso — agora ativo) */
-let toastTimer = null;
-function showToast(message){
-  const toast = document.getElementById("toast-midia");
-  if(!toast) return;
-  toast.querySelector("span:last-child").textContent = message;
-  toast.classList.remove("hidden");
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(()=> toast.classList.add("hidden"), 3500);
-}
-
 /* =========================================================
    CONFIGURAÇÕES — salvos direto na tabela profiles
+   (showToast global vem do arquivo toast.js)
    ========================================================= */
 document.getElementById("toggle-dark").addEventListener("change", async e=>{
   if(guestBlock()){ e.target.checked = !e.target.checked; return; }

@@ -2,6 +2,11 @@
    AUTENTICAÇÃO (Supabase Auth)
    ========================================================= */
 
+// true quando o Supabase ainda não foi configurado (chaves em branco)
+function supabaseOff(){
+  return !window.SUPABASE_CONFIGURED;
+}
+
 // Cria conta nova com e-mail e senha
 async function authSignUp(email, password, fullName){
   const { data, error } = await sb.auth.signUp({
@@ -48,6 +53,7 @@ async function authSignOut(){
 
 // Sessão atual (usada ao recarregar a página, para saber se já está logado)
 async function authGetSession(){
+  if(supabaseOff()) return null;
   const { data, error } = await sb.auth.getSession();
   if(error) throw error;
   return data.session;
@@ -55,7 +61,9 @@ async function authGetSession(){
 
 // Dispara callback sempre que o login/logout mudar
 function authOnChange(callback){
-  sb.auth.onAuthStateChange((_event, session) => callback(session));
+  if(supabaseOff()) return () => {};
+  const { data } = sb.auth.onAuthStateChange((_event, session) => callback(session));
+  return data?.subscription?.unsubscribe || (() => {});
 }
 
 // true = conta de convidado (login anônimo), false = conta com e-mail

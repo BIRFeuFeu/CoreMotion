@@ -202,13 +202,16 @@ create table if not exists public.cart_items (
 --
 -- IMPORTANTE: o e-mail abaixo é reconhecido automaticamente como
 -- DONO DO SITE assim que essa pessoa criar a conta (vira admin E
--- dono, de cara, sem precisar de aprovação). Troque para o seu
--- e-mail antes de rodar este script.
+-- dono, de cara, sem precisar de aprovação).
+--
+-- E-mail do dono configurado: alfeu.paula@escola.pr.gov.br
+-- (se precisar trocar, altere aqui E no bloco de "conserto retroativo"
+-- mais abaixo, mantendo os dois iguais.)
 -- =========================================================
 create or replace function public.handle_new_user()
 returns trigger as $$
 declare
-  owner_email text := 'alfeuvlp@gmail.com';  -- <<< troque aqui se precisar
+  owner_email text := 'alfeu.paula@escola.pr.gov.br';  -- e-mail do dono do site
   is_the_owner boolean := (lower(new.email) = lower(owner_email));
   meta_name text := coalesce(
     new.raw_user_meta_data->>'full_name',  -- cadastro por e-mail (nós enviamos isso)
@@ -220,6 +223,9 @@ declare
     new.raw_user_meta_data->>'picture'     -- login com Google manda "picture"
   );
 begin
+  if lower(owner_email) = 'seu-email-dono@exemplo.com' then
+    raise exception 'schema.sql: configure o e-mail do dono em handle_new_user() antes de rodar.';
+  end if;
   insert into public.profiles (id, full_name, avatar_url, is_owner, is_admin)
   values (new.id, meta_name, meta_avatar, is_the_owner, is_the_owner)
   on conflict (id) do nothing;
@@ -236,11 +242,16 @@ create trigger on_auth_user_created
 -- de rodar esta versão do script, este bloco corrige seu perfil agora.
 do $$
 begin
+  -- se o e-mail ainda for o placeholder, não faz nada e avisa
+  if lower('alfeu.paula@escola.pr.gov.br') = 'seu-email-dono@exemplo.com' then
+    raise notice 'schema.sql: aviso — e-mail do dono ainda é o placeholder. Troque nas DUAS ocorrências e rode de novo.';
+    return;
+  end if;
   perform set_config('app.allow_admin_change', 'true', true);
   update public.profiles p
   set is_owner = true, is_admin = true
   from auth.users u
-  where p.id = u.id and lower(u.email) = lower('alfeuvlp@gmail.com');
+  where p.id = u.id and lower(u.email) = lower('alfeu.paula@escola.pr.gov.br');
 end $$;
 
 -- =========================================================
