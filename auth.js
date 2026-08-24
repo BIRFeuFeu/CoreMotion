@@ -2,12 +2,10 @@
    AUTENTICAÇÃO (Supabase Auth)
    ========================================================= */
 
-// true quando o Supabase ainda não foi configurado (chaves em branco)
 function supabaseOff(){
   return !window.SUPABASE_CONFIGURED;
 }
 
-// Cria conta nova com e-mail e senha
 async function authSignUp(email, password, fullName){
   const { data, error } = await sb.auth.signUp({
     email,
@@ -18,25 +16,18 @@ async function authSignUp(email, password, fullName){
   return data;
 }
 
-// Login com e-mail e senha
 async function authSignIn(email, password){
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
   if(error) throw error;
   return data;
 }
 
-// Botão "Entrar com Conta de Teste" — login anônimo do Supabase.
-// Precisa estar ativado em Authentication > Providers > Anonymous Sign-ins.
 async function authSignInTeste(){
   const { data, error } = await sb.auth.signInAnonymously();
   if(error) throw error;
   return data;
 }
 
-// Login com o Google. A página inteira é redirecionada pro Google e volta
-// pra cá depois — o Supabase já detecta a sessão sozinho quando a página
-// recarrega, então não precisa tratar o retorno manualmente.
-// Precisa estar ativado em Authentication > Providers > Google.
 async function authSignInGoogle(){
   const { error } = await sb.auth.signInWithOAuth({
     provider: "google",
@@ -45,13 +36,11 @@ async function authSignInGoogle(){
   if(error) throw error;
 }
 
-// Logout
 async function authSignOut(){
   const { error } = await sb.auth.signOut();
   if(error) throw error;
 }
 
-// Sessão atual (usada ao recarregar a página, para saber se já está logado)
 async function authGetSession(){
   if(supabaseOff()) return null;
   const { data, error } = await sb.auth.getSession();
@@ -59,15 +48,12 @@ async function authGetSession(){
   return data.session;
 }
 
-// Dispara callback sempre que o login/logout mudar.
-// Recebe (evento, sessão) — o evento permite detectar PASSWORD_RECOVERY.
 function authOnChange(callback){
   if(supabaseOff()) return () => {};
   const { data } = sb.auth.onAuthStateChange((event, session) => callback(session, event));
   return data?.subscription?.unsubscribe || (() => {});
 }
 
-// Envia e-mail de redefinição de senha
 async function authResetPassword(email){
   const { data, error } = await sb.auth.resetPasswordForEmail(email, {
     redirectTo: window.location.origin + window.location.pathname
@@ -76,14 +62,12 @@ async function authResetPassword(email){
   return data;
 }
 
-// Define nova senha (chamado quando o usuário volta do link de recuperação)
 async function authUpdatePassword(newPassword){
   const { data, error } = await sb.auth.updateUser({ password: newPassword });
   if(error) throw error;
   return data;
 }
 
-// true = conta de convidado (login anônimo), false = conta com e-mail
 function authIsGuest(user){
   if(!user) return false;
   return user.is_anonymous === true || user.app_metadata?.provider === "anonymous";
