@@ -14,6 +14,24 @@ no Supabase: autenticação, banco de dados e upload de imagens.
 | `db.js` | Upload de arquivos + leitura/escrita no banco (perfis, produtos, comentários, notícias, mídia, equipes, pedidos de admin) |
 | `script.js` | Toda a interação da interface, já ligada ao Supabase |
 | `schema.sql` | Script único que cria as tabelas, segurança, funções e buckets de imagem |
+| `server.mjs` | Servidor HTTP local de desenvolvimento (opcional, sem dependências) |
+
+---
+
+## Rodar localmente (preview)
+
+O site é estático, mas **não funciona com `file://`** (o Supabase Auth e o
+`localStorage` exigem origem `http://` ou `https://`). Duas opções:
+
+```bash
+node server.mjs          # http://localhost:4173   (PORT=8080 node server.mjs para trocar a porta)
+# ou, sem Node:
+python3 -m http.server 4173
+```
+
+Depois é só abrir `http://localhost:4173`. Para funcionar de verdade o projeto
+precisa das chaves do Supabase (já preenchidas em `supabase-client.js`) e do
+`schema.sql` aplicado no banco.
 
 ---
 
