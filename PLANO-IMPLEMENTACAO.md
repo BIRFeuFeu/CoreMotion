@@ -7,7 +7,7 @@
 >
 > | | |
 > |---|---|
-> | **Versão** | 1.2 — 14/09/2026 (**Etapa 0 executada**) |
+> | **Versão** | 1.3 — 14/09/2026 (**Etapa 1 em andamento — XSS, upload e privacidade**) |
 > | **Autor** | Agente IA (Arena.ai Agent Mode) |
 > | **Branch** | `arena/01a09fcc-coremotion` |
 > | **Base analisada** | commit `90eff51` (13 arquivos na raiz) |
@@ -433,6 +433,25 @@ Comandos disponíveis: `npm start` · `npm test` · `npm run check` · `npm run 
 **Risco**: médio — mexer em RLS pode trancar o app; fazer no staging primeiro.
 **Dependência**: Etapa 0 (staging + migrações).
 
+#### ⚠️ Status parcial da Etapa 1 (14/09/2026) — parte executada, parte aguarda staging
+
+| Item | Estado | Evidência |
+|---|---|---|
+| B1 XSS | ✅ | `escapeHtml` aplicado em eventos, equipes, mídia, comentários, carrinho e pedidos de admin. Teste: comentário `<img src=x onerror=…>` → **0 nós** `<img>/<script>`, o payload aparece como texto e **nada executa** |
+| B2 upload (cliente) | ✅ | `validateUpload()` em `db.js` (tipo, tamanho, extensão saneada). Testes: >5 MB rejeitado, `.exe` rejeitado, vídeo aceito só no bucket `media` |
+| B4 URLs/CSS | ✅ | `safeUrl()` em mídia/equipes/carrinho e `safeColor()` para `--team-color`. Testes: `javascript:` bloqueado, injeção de CSS bloqueada |
+| B6 `validation.js` | ✅ parcial | `validation.js` agora é carregado e `LIMITS` rege o upload. Ligar `validateAll()` em **todos** os formulários ainda pendente |
+| B3 upload (banco) | ⚠️ escrita, **não testada** | `migrations/0002` (só o dono grava na própria pasta + teto por `metadata`). Exige staging |
+| B5 privacidade | ⚠️ escrita, **não testada** | `migrations/0003` (`profiles_select_public` respeita `public_profile`). Exige staging |
+| B7 rate limit | ⏳ | próxima iteração |
+| B8 CSP | ⏳ | próxima iteração |
+| B10 suite RLS | ⏳ | depende do staging (A7) |
+
+**Bug corrigido nesta etapa**: o `onerror="mediaImgError(this)"` da mídia chamava uma
+função que **não existia** (Referência que estouraria a cada imagem quebrada).
+Substituído por um `addEventListener("error")` que troca a imagem por um
+placeholder — sem handler inline (também mais amigável a CSP).
+
 ---
 
 ### Etapa 2 — Contas completas e LGPD básica · ~16 h · `P0/P1`
@@ -725,6 +744,8 @@ Um item só é riscado quando todos os marcadores abaixo forem verdadeiros:
 | 14/09/2026 | **Vendedor não precisa de CNPJ/MEI** — onboarding do split com CPF | Decisão do dono | PAY2, PAY12, K6 |
 | 14/09/2026 | **Etapa 0 executada** (A1–A6 prontos, A7 pendente de acesso ao painel) | Fundação para tudo que vem depois | Etapa 0 |
 | 14/09/2026 | **Correção no A3**: a chave `anon` continua versionada em `config.js`, porque ela é pública por desenho (vai ao navegador de todo visitante). O objetivo real — separar ambientes e nunca versionar segredo de verdade — foi atingido com `config.local.js` + `SUPABASE_CONFIG_SOURCE` | Achei a falha no próprio critério durante a execução | A3, Etapa 1 (B10 continua sendo a proteção de fato) |
+| 14/09/2026 | **Etapa 1 (parte 1) executada**: XSS eliminado em todas as interpolações de dado do banco (escapeHtml), uploads validados no cliente (validateUpload), URLs/CSS sanitizados (safeUrl/safeColor), validation.js carregado; testes de XSS/upload no harness | Execução direta da Etapa 1 | B1, B2, B4, B6 |
+| 14/09/2026 | **migrations 0002/0003 escritas e NÃO testadas** (storage hardening e privacidade de profiles) — bloqueadas pela falta de um banco de staging | Sem acesso ao Supabase neste ambiente | B3, B5, A7 |
 | — | — | — | — |
 
 ---

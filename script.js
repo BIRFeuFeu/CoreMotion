@@ -908,13 +908,13 @@ async function loadEventos(){
         <div class="event-card">
           <div class="event-top">
             <span class="event-type ${ev.type === "campeonato" ? "campeonato" : ""}">${ev.type === "campeonato" ? "Campeonato" : "Treino"}</span>
-            <span class="tag-judo">${ev.sport || "Geral"}</span>
+            <span class="tag-judo">${escapeHtml(ev.sport || "Geral")}</span>
           </div>
-          <h4>${ev.title}</h4>
-          ${ev.description ? `<p class="event-desc">${ev.description}</p>` : ""}
+          <h4>${escapeHtml(ev.title)}</h4>
+          ${ev.description ? `<p class="event-desc">${escapeHtml(ev.description)}</p>` : ""}
           <div class="event-meta">
-            <span>📅 ${dateLabel}</span>
-            <span>📍 ${ev.location || "A definir"}</span>
+            <span>📅 ${escapeHtml(dateLabel)}</span>
+            <span>📍 ${escapeHtml(ev.location || "A definir")}</span>
           </div>
           <button class="btn ${enrolled ? "btn-light" : "btn-primary"} event-enroll-btn ${enrolled ? "enrolled" : ""} ${isGuest ? "locked" : ""}"
                   data-event-id="${ev.id}" data-enrolled="${enrolled}" ${isGuest ? "disabled" : ""}>
@@ -1197,14 +1197,15 @@ async function loadListaEquipes(){
       return;
     }
     grid.innerHTML = teams.map(t => {
-      const logoBg = t.logo_url ? `style="background-image:url('${t.logo_url}')"` : "";
+      const logoUrl = safeUrl(t.logo_url);
+      const logoBg = logoUrl ? `style="background-image:url('${logoUrl}')"` : "";
       return `
       <div class="team-card" data-team-id="${t.id}">
-        <div class="team-card-logo" ${logoBg} data-icon="${t.logo_url ? "" : "flag"}"></div>
+        <div class="team-card-logo" ${logoBg} data-icon="${logoUrl ? "" : "flag"}"></div>
         <div class="team-card-body">
-          <h4>${t.name}</h4>
-          <span class="tag-judo">${t.sport || "Geral"}</span>
-          <p>${t.tagline || t.description || ""}</p>
+          <h4>${escapeHtml(t.name)}</h4>
+          <span class="tag-judo">${escapeHtml(t.sport || "Geral")}</span>
+          <p>${escapeHtml(t.tagline || t.description || "")}</p>
           <button class="btn btn-dark btn-block" data-ver-equipe="${t.id}">Ver Página</button>
         </div>
       </div>`;
@@ -1228,11 +1229,13 @@ async function loadListaEquipes(){
 
 function renderTeamPublicModal(team){
   const card = document.querySelector(".team-public-card");
-  card.style.setProperty("--team-color", team.primary_color || "#e5383b");
-  document.getElementById("tp-cover").style.backgroundImage = team.cover_url ? `url(${team.cover_url})` : "";
+  card.style.setProperty("--team-color", safeColor(team.primary_color));
+  const coverUrl = safeUrl(team.cover_url);
+  document.getElementById("tp-cover").style.backgroundImage = coverUrl ? `url(${coverUrl})` : "";
   const logo = document.getElementById("tp-logo");
-  if(team.logo_url){
-    logo.style.backgroundImage = `url(${team.logo_url})`;
+  const teamLogoUrl = safeUrl(team.logo_url);
+  if(teamLogoUrl){
+    logo.style.backgroundImage = `url(${teamLogoUrl})`;
     logo.innerHTML = "";
   }else{
     logo.style.backgroundImage = "";
@@ -1311,10 +1314,10 @@ async function renderAdminRequests(listEl, emptyEl){
     listEl.innerHTML = requests.map(r => `
       <div class="owner-request-item">
         <div>
-          <strong>${r.full_name || "Sem nome"}</strong>
-          <span class="owner-request-email">${r.email || ""}</span>
-          ${r.team_name ? `<span class="owner-request-team">Equipe: ${r.team_name}</span>` : ""}
-          ${r.message ? `<p class="owner-request-message">"${r.message}"</p>` : ""}
+          <strong>${escapeHtml(r.full_name || "Sem nome")}</strong>
+          <span class="owner-request-email">${escapeHtml(r.email || "")}</span>
+          ${r.team_name ? `<span class="owner-request-team">Equipe: ${escapeHtml(r.team_name)}</span>` : ""}
+          ${r.message ? `<p class="owner-request-message">"${escapeHtml(r.message)}"</p>` : ""}
         </div>
         <div class="owner-request-actions">
           <button class="btn btn-primary" data-approve="${r.id}">Aprovar</button>
@@ -1573,23 +1576,35 @@ async function loadMidia(){
       const likeCount = await dbGetMediaLikes(m.id).catch(()=>0);
       const tile = document.createElement("div");
       tile.className = "media-tile";
-      const hasUrl = !!m.url;
+      const mediaUrl = safeUrl(m.url);
+      const hasUrl = !!mediaUrl;
       const mediaTag = !hasUrl
         ? `<div class="media-tile-ph"><span class="icon-inline" data-icon="image"></span></div>`
         : (m.media_type === "video"
-            ? `<video src="${m.url}" controls preload="metadata"></video>`
-            : `<img src="${m.url}" alt="${escapeHtml(m.caption || "Mídia do CoreMotion")}" loading="lazy" onerror="mediaImgError(this)">`);
+            ? `<video src="${mediaUrl}" controls preload="metadata"></video>`
+            : `<img src="${mediaUrl}" alt="${escapeHtml(m.caption || "Mídia do CoreMotion")}" loading="lazy">`);
       const isOwner = currentUser && m.user_id === currentUser.id && !isGuest;
       tile.innerHTML = `
         ${mediaTag}
         ${isOwner ? `<button class="media-delete-btn" data-media-id="${m.id}" data-icon="x-circle" title="Excluir"></button>` : ""}
         <div class="media-tile-footer">
-          <p>${m.caption || ""}</p>
+          <p>${escapeHtml(m.caption || "")}</p>
           <button class="media-like-btn" data-media-id="${m.id}">
             <span class="icon-inline" data-icon="heart"></span> <span class="like-count">${likeCount}</span>
           </button>
         </div>`;
       grid.appendChild(tile);
+      // Se a imagem falhar ao carregar, troca por um placeholder (sem handler inline).
+      const mediaImg = tile.querySelector("img");
+      if(mediaImg){
+        mediaImg.addEventListener("error", ()=>{
+          const ph = document.createElement("div");
+          ph.className = "media-tile-ph";
+          ph.innerHTML = `<span class="icon-inline" data-icon="image"></span>`;
+          mediaImg.replaceWith(ph);
+          renderIcons(tile);
+        }, { once:true });
+      }
     }
     renderIcons(grid);
     staggerChildren(grid);
@@ -1789,8 +1804,8 @@ async function loadComentarios(productId){
       <div class="comment-item">
         <div class="comment-avatar"></div>
         <div class="comment-body">
-          <strong>${(c.profiles && c.profiles.full_name) || "Usuário CoreMotion"}</strong>
-          <p>${c.content}</p>
+          <strong>${escapeHtml((c.profiles && c.profiles.full_name) || "Usuário CoreMotion")}</strong>
+          <p>${escapeHtml(c.content)}</p>
         </div>
       </div>
     `).join("");
@@ -1851,12 +1866,13 @@ async function loadCarrinho(){
       const p = item.products;
       const subtotal = (p?.price || 0) * item.quantity;
       total += subtotal;
-      const imgBg = p?.image_url ? `background-image:url('${p.image_url}')` : "";
+      const cartImg = safeUrl(p?.image_url);
+      const imgBg = cartImg ? `background-image:url('${cartImg}')` : "";
       return `
         <div class="cart-item">
           <div class="cart-item-img" style="${imgBg}"></div>
           <div class="cart-item-info">
-            <strong>${p?.title || "Produto"}</strong>
+            <strong>${escapeHtml(p?.title || "Produto")}</strong>
             <span>Qtd: ${item.quantity} · R$ ${Number(subtotal).toFixed(2).replace(".", ",")}</span>
           </div>
           <button class="cart-item-remove" data-cart-id="${item.id}">Remover</button>

@@ -377,6 +377,24 @@ O que será construído (**área L** do plano, **Etapa 7**):
   mascarados até o "revelar", e cada revelação é auditada.
 - A chave `service_role` **só existe dentro das Edge Functions**, nunca no front.
 
+## Segurança (Etapa 1 — em andamento)
+
+O que já foi blindado (com teste automatizado no `npm test`):
+
+- **XSS eliminado**: todo dado que vem do banco e vai para `innerHTML` passa por
+  `escapeHtml` (eventos, equipes, mídia, comentários, carrinho, pedidos de admin).
+  Um comentário `<img src=x onerror=…>` vira **texto**, não código.
+- **Upload validado no cliente** (`validateUpload` em `db.js`): só imagem (ou vídeo
+  no feed), teto de 5 MB / 50 MB, extensão saneada para `[a-z0-9]`.
+- **URLs e cores sanitizadas**: `safeUrl()` só aceita `http(s)`; `safeColor()` só
+  aceita `#hex` (bloqueia injeção de CSS via `--team-color`).
+- **`validation.js` carregado**: os limites (`LIMITS`) agora regem o upload.
+
+O que está **escrito mas não testado** (exige um banco de staging — veja A7):
+
+- `migrations/0002` — só o dono grava na própria pasta do Storage + teto de tamanho.
+- `migrations/0003` — `profiles` privado deixa de ser legível por terceiros.
+
 ## O que já foi melhorado nesta versão
 
 - **Configuração do Supabase sem dor**: o site detecta chaves em branco/placeholder,

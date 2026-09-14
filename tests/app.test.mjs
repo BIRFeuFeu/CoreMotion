@@ -626,6 +626,35 @@ check(
   JSON.stringify(db.product_comments)
 );
 
+/* ---- 8b. XSS: helpers + comentário malicioso viram texto, não HTML ---- */
+check("safeUrl bloqueia javascript:", window.eval('safeUrl("javascript:alert(1)")') === "");
+check(
+  "safeUrl aceita https",
+  window.eval('safeUrl("https://ex.com/a.png")') === "https://ex.com/a.png"
+);
+check(
+  "safeColor bloqueia injeção CSS",
+  window.eval('safeColor("red; } body{background:red}")') === "#e5383b"
+);
+check("safeColor aceita hex", window.eval('safeColor("#12ab34")') === "#12ab34");
+$("#comentario-input").value =
+  '<img src=x onerror="window.__xss=1"> <scr' + "ipt>window.__xss=1</scr" + "ipt>";
+$("#form-comentario").dispatchEvent(
+  new window.Event("submit", { bubbles: true, cancelable: true })
+);
+await tick(320);
+const xssNodes = $("#detalhe-comentarios").querySelectorAll("img, script").length;
+check(
+  "XSS: comentário malicioso não cria <img>/<script>",
+  xssNodes === 0,
+  `${xssNodes} nós perigosos`
+);
+check(
+  "XSS: payload aparece como texto visível",
+  ($("#detalhe-comentarios").textContent || "").includes("onerror")
+);
+check("XSS: nenhum código executado", window.__xss === undefined);
+
 /* ---- 9. busca do marketplace (input real, com debounce) ---- */
 const search = $("#marketplace-search");
 search.value = "kimono";
@@ -643,6 +672,31 @@ check(
   "busca sem resultado mostra estado vazio",
   !hidden("#view-marketplace [data-empty]"),
   $("#view-marketplace [data-empty]")?.textContent?.trim()
+);
+
+/* ---- 10b. validação de upload (B2) ---- */
+window.__up = {
+  big: { type: "image/png", size: 10 * 1024 * 1024, name: "x.png" },
+  exe: { type: "application/x-msdownload", size: 1000, name: "virus.exe" },
+  okImg: { type: "image/png", size: 1000, name: "foto.PNG" },
+  vid: { type: "video/mp4", size: 1000, name: "v.mp4" },
+};
+check(
+  "upload: imagem >5 MB rejeitada",
+  window.eval("validateUpload('avatars', __up.big).ok") === false
+);
+check(
+  "upload: executável rejeitado",
+  window.eval("validateUpload('avatars', __up.exe).ok") === false
+);
+check(
+  "upload: imagem válida aceita",
+  window.eval("validateUpload('avatars', __up.okImg).ok") === true
+);
+check(
+  "upload: vídeo só no bucket media",
+  window.eval("validateUpload('avatars', __up.vid).ok") === false &&
+    window.eval("validateUpload('media', __up.vid).ok") === true
 );
 
 /* ---- 10. nenhum erro acumulado durante todo o fluxo ---- */
