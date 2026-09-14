@@ -392,7 +392,7 @@ que sustenta o produto perante a LGPD e perante o próprio dono do site.
 | Item | Estado | Evidência |
 |---|---|---|
 | A1 testes versionados | ✅ pronto | `tests/app.test.mjs` — **43 verificações, 0 falhas**, exit 1 se falhar |
-| A2 CI | ✅ pronto | `.github/workflows/ci.yml` roda check + lint + format + test + verify-migrations |
+| A2 CI | ⚠️ pronto, **não ativado** | `ci/ci.yml` (check + lint + format + test + verify-migrations). O push em `.github/workflows/` foi recusado por falta da permissão `workflows` — copiar o arquivo ativa (veja `ci/README.md`) |
 | A3 configuração | ✅ pronto | `config.js` + `config.local.example.js`; `supabase-client.js` sem chave; origem verificada nos dois modos (`local` e `arquivo`) |
 | A4 migrations | ✅ pronto | `migrations/0001_init.sql` (idêntico ao `schema.sql`, verificado por `diff`), `db/migrate.sh`, `db/verify-migrations.sh` |
 | A5 lint/format | ✅ pronto | `eslint.config.mjs` (0 erros — validado com arquivo-prova que gera `no-undef`/`no-dupe-keys`), `.prettierrc` |

@@ -20,7 +20,7 @@ no Supabase: autenticação, banco de dados e upload de imagens.
 | `scripts/check-syntax.mjs` | Confere a sintaxe de todos os scripts — `npm run check` |
 | `migrations/` | Migrações do banco (`0001_init.sql` = baseline idêntico ao `schema.sql`) |
 | `db/migrate.sh` | Aplica as migrations que ainda não rodaram (controla em `_migrations`) |
-| `.github/workflows/ci.yml` | CI: sintaxe + lint + formatação + testes em todo push |
+| `ci/ci.yml` | Workflow de CI pronto (sintaxe + lint + formatação + testes). Ativação: veja `ci/README.md` |
 
 ---
 
@@ -45,7 +45,7 @@ npm test                  # 43 verificações de UI (jsdom + Supabase simulado)
 npm run check             # sintaxe de todos os .js/.mjs
 npm run lint              # ESLint (0 erros)
 npm run format:check      # Prettier nos arquivos de ferramenta
-npm run verify            # tudo acima de uma vez
+npm run verify            # tudo acima de uma vez (é o que o CI roda)
 bash db/verify-migrations.sh   # confere se o baseline das migrations está íntegro
 ```
 
