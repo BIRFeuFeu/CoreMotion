@@ -228,6 +228,12 @@ Quando a conta vira admin, ela ganha:
   a página pública da equipe;
 - Um campo extra de **Cargo** no perfil (ex: "Técnico Chefe").
 
+> 🛡️ **Isso é só o começo.** O admin ganhará **controle total de todas as contas
+> do site** (console de contas, ficha completa, edição de qualquer dado,
+> suspensão, impersonação, financeiro e auditoria). Veja a seção
+> **[Decisões de produto](#decisões-de-produto-14092026--o-que-será-implementado)**
+> abaixo e a **área L** do [PLANO-IMPLEMENTACAO.md](PLANO-IMPLEMENTACAO.md).
+
 ### Sobre o aviso por e-mail pra você
 Hoje o aviso de "tem gente pedindo pra virar admin" aparece **dentro do
 app**, no painel que só você vê em Configurações → Conta — isso funciona
@@ -259,6 +265,68 @@ o painel dentro do app já resolve o "só eu aprovo" sem depender de mais nada.
 
 Para o login anônimo funcionar, lembre de ativar **Authentication → Providers →
 Anonymous Sign-ins** no seu projeto (passo 4 acima). Para o Google, é o passo 5.
+
+## Decisões de produto (14/09/2026) — o que será implementado
+
+Decisões do dono já incorporadas ao
+**[PLANO-IMPLEMENTACAO.md](PLANO-IMPLEMENTACAO.md)** (versão 1.1) e resumidas aqui.
+
+### 💳 Pagamento: Mercado Pago com taxa de 5%
+
+- O marketplace **cobra dinheiro de verdade** (não é vitrine).
+- Gateway: **Mercado Pago**. Na v1, **Checkout Pro** (Pix + cartão + boleto),
+  hospedado pelo próprio Mercado Pago — o cartão nunca passa pelo nosso código.
+- A plataforma retém **5%** de cada venda por **split de pagamento**
+  (`marketplace_fee` no Checkout Pro; `application_fee` no Checkout
+  Transparente/Bricks). O vendedor recebe o líquido automaticamente, sem repasse
+  manual — para isso ele vincula a conta MP dele por OAuth.
+- ⚠️ **Detalhe do cálculo:** o Mercado Pago desconta a taxa dele **primeiro** e a
+  comissão de 5% incide sobre o que sobra. O líquido do vendedor precisa ser
+  simulado antes de divulgar o número.
+- **Como um pedido vira "pago":** somente por **webhook** do Mercado Pago com a
+  assinatura `x-signature` validada (HMAC-SHA256 do manifesto
+  `id:{data.id};request-id:{x-request-id};ts:{ts};`) — nunca pelo navegador.
+- ⚠️ **Mudança de arquitetura:** o site é 100% estático e o `access_token` do
+  Mercado Pago não pode ir para o navegador. Por isso a criação da preferência e
+  o webhook viram **Supabase Edge Functions** (`mp-create-preference` e
+  `mp-webhook`) — o primeiro código de servidor do projeto.
+- **Hoje: nada disso existe.** O botão "Finalizar Compra" só limpa o carrinho
+  (`script.js:1881`), enquanto a função `create_order()` do `schema.sql:616`
+  nunca é chamada. Tudo detalhado na **Etapa 4** do plano.
+
+### 🛡️ Sistema de Admin — controle total de todas as contas
+
+O admin passa a ter **controle total de todas as contas que logarem no site**.
+Hoje ele faz 4 coisas (aprovar/recusar pedido, promover, revocar, excluir).
+O que será construído (**área L** do plano, **Etapa 7**):
+
+| O que o admin vai poder fazer | Como |
+|---|---|
+| Ver **todas** as contas do site | Console de Contas com papel, status, cadastro, último acesso, sessões ativas e contadores (produtos, mídias, comentários, pedidos, vendas) + filtros, busca, ordenação e CSV |
+| Saber **quem está logado agora** | Heartbeat (`touch_session()`) gravando `last_seen_at`, dispositivo e IP; badge "online" para atividade nos últimos 5 min |
+| Abrir a **ficha completa** de qualquer conta | 6 abas: Perfil, Segurança, Conteúdo, Financeiro, Moderação e Auditoria |
+| **Editar qualquer dado** de qualquer conta | Nome, e-mail, função, esportes, bio, avatar e cargo — inline |
+| **Resetar senha** e **derrubar sessões** | Link de redefinição + "sair de todos os dispositivos" |
+| **Suspender, banir, excluir** | Com **motivo obrigatório** e prazo; o bloqueio vale no banco (`is_suspended`) |
+| **Promover/rebaixar** entre papéis | `owner` · `admin` · `moderator` · `support` (RBAC no banco) |
+| **Mesclar conta convidada** em conta real | Sem perder curtidas, inscrições e carrinho |
+| **Entrar como o usuário** (impersonação) | *View-as* somente leitura por padrão; impersonação real exige 2FA + motivo, expira em 30 min e mostra banner permanente |
+| **Moderar tudo** | Fila de denúncias, apagar qualquer conteúdo, transferir propriedade |
+| **Controlar o dinheiro** | GMV, 5% retido, repasses pendentes, estornos, chargebacks e bloqueio de repasse |
+| **Ver analytics e auditoria** | `get_analytics()` (cadastros, esportes, receita, funil) + trilha com antes/depois, motivo, IP e user-agent |
+
+**Regras de segurança desse poder (inegociáveis):**
+
+- **Nenhuma permissão é decidida no navegador** — tudo é checado no banco por
+  `has_permission()`, do mesmo jeito que `is_owner`/`is_admin` já são hoje.
+- **2FA (TOTP) obrigatório** para `admin` e `owner`, sessão curta e alerta de
+  login em dispositivo novo.
+- **Toda ação fica em `audit_log`** com valor antigo, valor novo, motivo, IP e
+  user-agent — e nenhum papel consegue apagar a trilha (retenção mínima de 5 anos).
+- **Ações destrutivas exigem motivo digitado** + confirmação dupla.
+- **LGPD:** abrir a ficha de uma conta exige motivo; e-mail e documentos aparecem
+  mascarados até o "revelar", e cada revelação é auditada.
+- A chave `service_role` **só existe dentro das Edge Functions**, nunca no front.
 
 ## O que já foi melhorado nesta versão
 

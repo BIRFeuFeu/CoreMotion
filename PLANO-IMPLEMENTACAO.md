@@ -7,7 +7,7 @@
 >
 > | | |
 > |---|---|
-> | **Versão** | 1.0 — 14/09/2026 |
+> | **Versão** | 1.1 — 14/09/2026 (decisões de pagamento + sistema de admin) |
 > | **Autor** | Agente IA (Arena.ai Agent Mode) |
 > | **Branch** | `arena/01a09fcc-coremotion` |
 > | **Base analisada** | commit `90eff51` (13 arquivos na raiz) |
@@ -42,12 +42,22 @@ nem pagamento, nem pedido para o vendedor.
 Para virar um site real faltam, nesta ordem de importância:
 
 1. **Segurança**: XSS armazenado em comentários/legendas, upload sem validação, perfis 100% públicos apesar do toggle de privacidade.
-2. **Transação**: checkout real (pedidos + pagamento + status + entrega).
-3. **Operação**: notificações, moderação, suspensão, auditoria, analytics.
-4. **Confiança**: testes automatizados, CI, backups, monitoramento, LGPD, domínio próprio.
+2. **Transação**: checkout real — pedido no banco, **pagamento via Mercado Pago com 5% de split**, status e entrega (decidido em 14/09/2026).
+3. **Controle**: **console de admin com domínio total de todas as contas** que logarem no site — ficha completa, edição, suspensão, impersonação, financeiro e auditoria (decidido em 14/09/2026 → área **L**).
+4. **Operação**: notificações, moderação, suspensão, auditoria, analytics.
+5. **Confiança**: testes automatizados, CI, backups, monitoramento, LGPD, domínio próprio.
 
-**Estimativa total: 9 etapas, ~120 a 180 horas de trabalho de agente** (ver §5).
-Dá para ter uma **v1 pública utilizável ao fim da Etapa 4** e um **produto
+**Decisões do dono (14/09/2026), já incorporadas a este plano:**
+1. **O marketplace cobra dinheiro de verdade** → Etapa 4 integral (não é vitrine).
+2. **Gateway: Mercado Pago** → Checkout Pro na v1, webhook assinado, sandbox.
+3. **Taxa de intermediação: 5%** → split via `marketplace_fee` (o `get_analytics()`
+   do schema já calculava 5%, agora a decisão bate com o código).
+4. **Admin com controle total de todas as contas que logarem no site** → nova área
+   **L** (12 tarefas) e Etapa 7 expandida: console de contas, ficha completa,
+   suspender/banir/mesclar/impersonar, RBAC no banco, auditoria com diff e 2FA.
+
+**Estimativa total: 10 etapas (0 a 9), ~196 horas de trabalho de agente** (ver §5).
+Dá para ter uma **v1 pública utilizável ao fim da Etapa 4** (~98 h) e um **produto
 completo ao fim da Etapa 9**.
 
 ### Maturidade atual por módulo
@@ -58,7 +68,7 @@ completo ao fim da Etapa 9**.
 | Perfil do atleta | 100% | 85% | 🟡 | `public_profile` não é respeitado pelo banco |
 | Marketplace (anúncio/visualização) | 90% | 80% | 🟡 | 1 foto por produto, sem estoque, avaliação é `★★★` fixo |
 | **Pedidos / checkout** | **100%** | **0%** | 🔴 | `create_order()` nunca é chamado |
-| **Pagamento** | 0% | 0% | 🔴 | Não existe |
+| **Pagamento** | 0% | 0% | 🔴 | **Decidido**: Mercado Pago com split de 5% (Etapa 4) — falta tudo, inclusive o servidor (Edge Functions) |
 | Comentários | 100% | 70% | 🟡 | Sem edição/exclusão, sem limite de tamanho no cliente, XSS |
 | Mídia (feed) | 100% | 75% | 🟡 | N+1 de consultas, sem paginação, sem moderação |
 | **Notificações** | **100%** (tabela + triggers) | **0%** | 🔴 | Nenhum sino/central no app |
@@ -68,7 +78,8 @@ completo ao fim da Etapa 9**.
 | **Check-in de presença** | **100%** | **0%** | 🔴 | `check_in_event()` órfã |
 | Notícias | 100% | 75% | 🟡 | Sem paginação, sem edição |
 | Equipes | 100% | 80% | 🟡 | `team_stats` órfã |
-| Admin (aprovar/promover/excluir) | 100% | 90% | 🟢 | Funciona |
+| Admin atual (aprovar/promover/excluir) | 100% | 90% | 🟢 | Funciona, mas são só 4 ações |
+| **Console de Admin (controle total de contas)** | 0% | 0% | 🔴 | Não existe — área **L**, Etapa 7 |
 | **Moderação (denúncias)** | **100%** | **0%** | 🔴 | `reports` órfã |
 | **Suspensão de usuários** | **100%** | **0%** | 🔴 | `suspend_user()` órfã |
 | **Auditoria** | **100%** | **0%** | 🔴 | `audit_log` órfã |
@@ -317,6 +328,41 @@ admin conseguir suspender alguém pela interface (H2).
 | K5 | **Regras da comunidade + política de moderação** (necessário para UGC) | P1 | S | Página publicada; link no formulário de denúncia |
 | K6 | **CNPJ/MEI, nota fiscal e contrato de intermediação** se o marketplace cobrar taxa (o `get_analytics` já calcula 5% de receita) | P1 | — | Decisão de negócio registrada (§8) |
 
+### L. Sistema de Admin — controle total de todas as contas
+
+> **Decisão do dono (14/09/2026):** o admin precisa ter **controle total de todas
+> as contas que logarem no site**. Isso é implementado como um **Console de
+> Administração** com permissões no banco (RBAC), auditoria completa e
+> guarda-corpos de segurança/LGPD — **nunca** como privilégio decidido no cliente.
+>
+> **Hoje** o admin faz 4 coisas: aprovar/recusar pedido de admin, promover,
+> revocar e excluir conta (`db.js:269-303`). **Falta todo o resto.**
+
+| ID | Tarefa | P | E | Critérios de aceite |
+|---|---|---|---|---|
+| L1 | **Console de Contas**: lista mestra de **todas** as contas com papel, status, data de cadastro, último acesso, sessões ativas e contadores (produtos, mídias, comentários, pedidos, vendas); filtros, busca, ordenação, paginação e exportação CSV | **P0** | M | A tela lista 100% das contas; filtro por papel/status/"online" roda no banco; CSV baixa |
+| L2 | **Presença real**: RPC `touch_session()` (heartbeat no boot e a cada troca de tela, com debounce) gravando `last_seen_at`, dispositivo e IP; badge "online" para atividade < 5 min | **P0** | M | Admin vê quem está logado agora; o estado some após 5 min de inatividade |
+| L3 | **Ficha da conta (dossiê)** com 6 abas: **Perfil** (edição inline de qualquer campo), **Segurança** (reset de senha, forçar logout de todas as sessões, 2FA), **Conteúdo** (tudo que a conta criou, com ação por item), **Financeiro** (pedidos, vendas, taxa 5%, repasses, estornos), **Moderação** (denúncias) e **Auditoria** | **P0** | L | Qualquer campo de qualquer conta é editável pelo admin; as 6 abas mostram dados reais |
+| L4 | **Ações de controle**: promover/rebaixar entre papéis, **suspender/reativar com motivo e prazo**, banir, excluir com carência, verificar e-mail manualmente, **mesclar conta convidada → conta real** (preservando dados), transferir propriedade de conteúdo, crédito/débito manual com justificativa | **P0** | M | Cada ação funciona, exige motivo e aparece na auditoria |
+| L5 | **"Acessar como" (impersonação)**: modo *view-as* somente leitura por padrão; impersonação real apenas com 2FA + motivo + sessão de 30 min + banner vermelho permanente | P1 | M | Admin entra como o usuário; o banner "VOCÊ ESTÁ AGINDO COMO X" não some; tudo vai para `audit_log` |
+| L6 | **RBAC no banco**: tabelas `admin_roles`, `admin_permissions`, `admin_role_permissions` + função `has_permission(perm)` usada nas policies. Papéis: `owner` (tudo, inclusive financeiro) · `admin` (contas e conteúdo) · `moderator` (conteúdo e denúncias) · `support` (leitura + reset de senha) | **P0** | M | Chamar a API direto com token de `moderator` em ação de `admin` retorna erro; teste automatizado por papel |
+| L7 | **Auditoria total**: estender `audit_log` com `before`/`after` (diff JSON), `reason`, `ip`, `user_agent`, `result`; aba com filtros; **retenção mínima de 5 anos, sem delete** | **P0** | M | Toda ação sensível gera trilha com valor antigo e novo; nenhum papel apaga a trilha |
+| L8 | **Guarda-corpos do próprio admin**: 2FA (TOTP) obrigatório para `admin`/`owner`, sessão curta, alerta de login em dispositivo novo, confirmação dupla com motivo digitado em ações destrutivas, rate limit, `service_role` **somente** em Edge Functions | **P0** | M | Sem 2FA não há acesso admin; ação destrutiva sem motivo é recusada |
+| L9 | **LGPD no acesso a dados pessoais**: base legal e finalidade documentadas, **motivo obrigatório** para abrir a ficha de uma conta, e-mail/documentos mascarados por padrão com botão "revelar" auditado, registro de cada visualização | **P0** | M | Abrir ficha sem motivo é bloqueado; cada "revelar" fica na auditoria |
+| L10 | **Alertas ao admin**: contadores no topo do console (contas novas hoje, denúncias pendentes, pedidos com problema, chargebacks) + e-mail (J3) em ações críticas | P1 | S | Painel mostra os números; dono recebe e-mail de ação crítica |
+| L11 | **Convite de admins pelo dono**: convite por e-mail com expiração; o aceite cria a conta já com o papel (tabela `admin_invites`) | P1 | S | Convite expirado não funciona; papel aplicado no aceite |
+| L12 | **Controle financeiro**: GMV, taxa de 5% retida, repasses pendentes, reembolsos e chargebacks; bloquear repasse de vendedor sob investigação | **P0** | M | Números batem com o painel do Mercado Pago; bloqueio impede o repasse |
+
+**Novas migrations necessárias**: `admin_roles`, `admin_permissions`,
+`admin_role_permissions`, `admin_invites`, `sessions_log` (heartbeat),
+`account_actions` (motivos), `payments` (Etapa 4) e colunas novas em `audit_log`
+(`before`, `after`, `reason`, `ip`, `user_agent`, `result`).
+
+**O que "controle total" NÃO significa** (decisão técnica, não limitação): nada de
+poder decidido no navegador, nada de `service_role` no front, nada de acesso a
+dados pessoais sem motivo registrado. Controle total com trilha completa — é isso
+que sustenta o produto perante a LGPD e perante o próprio dono do site.
+
 ---
 
 ## 5. Plano por etapas
@@ -415,28 +461,43 @@ admin conseguir suspender alguém pela interface (H2).
 
 ---
 
-### Etapa 4 — Pagamento de verdade · ~24 h · `P0` *(decisão de negócio pendente — §8)*
+### Etapa 4 — Pagamento com Mercado Pago (split de 5%) · ~30 h · `P0`
 
-**Objetivo**: dinheiro trocando de mão com segurança e conciliação.
+**Decisões do dono (14/09/2026)**: o marketplace **cobra dinheiro de verdade**,
+o gateway é o **Mercado Pago** e a taxa de intermediação é **5%**.
 
-| Itens | Entregáveis |
-|---|---|
-| D-PAY1 | Integração com gateway (Mercado Pago / Pagar.me / Stripe): checkout hospedado ou Checkout Transparente, Pix + cartão |
-| D-PAY2 | **Webhook** validado por assinatura → atualiza `orders.status = 'paid'` (função `security definer` + verificação de assinatura; nunca confiar no cliente) |
-| D-PAY3 | Split/repasse ou taxa de intermediação (o analytics já assume 5%) |
-| D-PAY4 | Tela de "pagamento pendente/aprovado/recusado" + e-mail de recibo (J3) |
-| D-PAY5 | Reembolso/cancelamento e estorno no gateway |
-| D-PAY6 | Ambiente de sandbox do gateway + testes de webhook |
+> **Consequência de arquitetura (importante):** o CoreMotion é 100% estático, e
+> pagamento exige dois pontos de servidor — criar a preferência e receber o
+> webhook. Como o `access_token` do Mercado Pago **nunca** pode ir para o
+> navegador, esses dois pontos viram **Supabase Edge Functions** (Deno):
+> `mp-create-preference` e `mp-webhook`. É a primeira vez que o projeto ganha
+> código de servidor — por isso a etapa ficou maior.
+
+| ID | Tarefa | P | E | Critérios de aceite |
+|---|---|---|---|---|
+| PAY1 | **Conta e credenciais**: conta MP de produção + aplicação em "Suas integrações"; `access_token` e webhook secret guardados como segredo do Supabase (nunca no repo) | **P0** | S | Credenciais de teste e produção separadas; `git grep access_token` não retorna nada |
+| PAY2 | **Onboarding do vendedor**: vincular cada vendedor à plataforma via OAuth (conta MP + dados de repasse); o status "apto a vender" só aparece depois do vínculo | **P0** | M | Vendedor sem vínculo não anuncia; o vínculo aparece na ficha da conta (L3) |
+| PAY3 | **Checkout**: Edge Function `mp-create-preference` monta a preferência a partir do **pedido gravado no banco** (nunca do preço vindo do cliente) e devolve a `init_point`; o front usa **Checkout Pro** na v1 (Pix + cartão + boleto) | **P0** | M | Total da preferência = total de `orders`; adulterar o preço no navegador não muda o valor cobrado |
+| PAY4 | **Split de 5%**: `marketplace_fee` na preferência (Checkout Pro) — no Checkout Transparente/Bricks o parâmetro equivalente é `application_fee`. Simular o líquido do vendedor antes de travar o número: o Mercado Pago desconta a taxa dele **primeiro** e a comissão do marketplace incide sobre o restante | **P0** | M | Em uma venda de R$ 100 a plataforma retém 5% e o vendedor recebe o líquido; o relatório de split confere com o painel do MP |
+| PAY5 | **Webhook `mp-webhook`**: validar o header `x-signature` (HMAC-SHA256 do manifesto `id:{data.id};request-id:{x-request-id};ts:{ts};` com o secret da integração), responder `200`, e só então confirmar o pagamento consultando a API do MP para atualizar `orders.status` | **P0** | M | Webhook com assinatura inválida → 401 e nenhum status muda; webhook duplicado não duplica efeito (idempotência por `mp_payment_id`) |
+| PAY6 | **Tabela `payments`** (migration): `order_id`, `mp_payment_id` (único), `status`, `amount`, `fee`, `net`, `raw jsonb`, `received_at` | **P0** | S | Cada pagamento tem uma linha; replay do webhook não cria duplicata |
+| PAY7 | **Telas de retorno**: aprovado · pendente (Pix aguardando) · recusado, com motivo legível e "tentar outro meio de pagamento" | **P0** | M | Cada status tem tela própria; o comprador nunca fica sem resposta |
+| PAY8 | **Recibos por e-mail** (J3): comprador (recibo), vendedor (venda + valor líquido), dono (taxa retida) | **P0** | S | Os três e-mails chegam com valores corretos |
+| PAY9 | **Reembolso e chargeback**: estorno total/parcial pela API refletido no pedido; webhook de chargeback com alerta ao dono | P1 | M | Estorno muda o status e aparece no financeiro do admin (L12) |
+| PAY10 | **Conciliação diária**: relatório comparando `orders`/`payments` com a API do MP; divergência vira alerta | P1 | M | Divergência simulada é detectada |
+| PAY11 | **Sandbox**: contas e cartões de teste do Mercado Pago; fluxo completo testado antes da produção | **P0** | S | Compra de teste aprovada, pendente e recusada |
+| PAY12 | **Fiscal**: registro/emissão de nota fiscal da taxa de intermediação (depende de CNPJ/MEI — K6) | P1 | — | Decisão contábil registrada em §9 |
 
 **Definition of Done**
-- Pagamento em sandbox aprova → `orders.status='paid'` **somente** via webhook assinado.
-- Webhook forjado (assinatura inválida) é rejeitado com log.
-- Recibo chega por e-mail; comprador e vendedor veem o pedido pago.
-- Nenhum valor é calculado no cliente (sempre no banco/gateway).
+- Comprar gera `orders` + `order_items` + preferência no MP com o **preço do banco**.
+- `orders.status` vira `paid` **apenas** por webhook com assinatura válida e confirmação na API.
+- Split de 5% conferido no painel do MP; o vendedor vê o valor líquido no app.
+- Falha no pagamento não perde o pedido nem o carrinho.
+- Estorno e chargeback refletem no app e no financeiro do admin.
+- Nenhum segredo do MP no repositório nem no navegador.
 
-**Testes**: sandbox + replay de webhook + teste de assinatura inválida + conciliação de 10 pedidos.
-**Risco**: **alto** (dinheiro). Exige conta no gateway e, provavelmente, CNPJ.
-**Dependência**: Etapa 3. **Alternativa**: se o marketplace for vitrine sem pagamento, pular para a Etapa 5 e marcar D como "pedido manual" (decisão em §8).
+**Testes**: sandbox + replay de webhook + assinatura inválida + preço adulterado no cliente + conciliação de 10 pedidos.
+**Risco**: **alto** (dinheiro + primeira Edge Function). **Dependência**: Etapa 3 e conta ativa no Mercado Pago.
 
 ---
 
@@ -479,23 +540,35 @@ admin conseguir suspender alguém pela interface (H2).
 
 ---
 
-### Etapa 7 — Administração, moderação e dados · ~18 h · `P0/P1`
+### Etapa 7 — Console de Admin: controle total de contas, moderação e dados · ~34 h · `P0`
+
+**Objetivo**: o admin enxerga e controla **todas** as contas que logarem no site,
+com trilha de auditoria completa e sem nenhuma permissão decidida no cliente.
 
 | Itens | Entregáveis |
 |---|---|
-| H1, H2 | Fila de moderação (denúncias) + suspender/reativar usuário |
-| H3 | Dashboard de analytics com `get_analytics()` (gráficos sem dependência pesada) |
-| H4 | Aba de auditoria (`audit_log`) |
-| H5, H6 | Ações em lote + exportação CSV |
+| L1, L2 | Console de Contas (lista mestra de todas as contas) + presença real por heartbeat |
+| L3, L4 | Ficha da conta com 6 abas + todas as ações de controle (editar qualquer campo, reset de senha, forçar logout, suspender com motivo, banir, excluir, mesclar convidado, transferir conteúdo) |
+| L6, L8 | RBAC no banco (`has_permission`) + 2FA obrigatório + confirmação com motivo em ação destrutiva |
+| L7 | Auditoria total com diff antes/depois, motivo, IP e user-agent |
+| L9 | Guarda-corpo LGPD: motivo para abrir a ficha e máscara de dados sensíveis |
+| H1, H2 | Fila de moderação (denúncias) + suspender/reativar integrado à ficha |
+| H3, H4, L10 | Analytics (`get_analytics`) + aba de auditoria + alertas ao admin |
+| H5, H6, L11, L12 | Ações em lote, exportação CSV, convite de admin, controle financeiro |
+| L5 | "Acessar como" (impersonação) com banner e expiração |
 
 **Definition of Done**
-- Denúncia → moderador resolve → conteúdo some → autor é notificado.
-- Usuário suspenso não posta (já bloqueado por `is_suspended` nas policies) e vê o motivo no app.
-- Painel mostra cadastros/30d, top esportes, receita, funil, top eventos com dados reais.
-- Toda ação de admin (promover, excluir, suspender, apagar conteúdo) aparece na auditoria.
+- Qualquer conta do site aparece no console com papel, status, último acesso e contadores; "online agora" reflete atividade real.
+- O admin abre a ficha de **qualquer** conta e edita nome, e-mail, função e avatar; reset de senha e "sair de todos os dispositivos" funcionam.
+- Suspender com motivo impede a conta de postar (já barrado por `is_suspended` nas policies) e o usuário vê o motivo no app.
+- **Nenhuma permissão é decidida no cliente**: chamar a API direto com token de `moderator` numa ação de `admin` é recusado (teste automatizado por papel).
+- Toda ação sensível fica em `audit_log` com valor antigo, valor novo, motivo, IP e user-agent; nenhum papel consegue apagar a trilha.
+- Abrir a ficha de uma conta exige motivo; e-mail aparece mascarado até o "revelar" (auditado).
+- Impersonação mostra banner permanente e expira em 30 min.
 
-**Testes**: harness para cada fluxo de admin; checagem de que só `is_owner`/`is_admin` acessa.
-**Risco**: baixo. **Dependência**: Etapas 3–5 (há o que moderar).
+**Testes**: harness cobrindo cada ação + suite RLS por papel (`owner`/`admin`/`moderator`/`support`/`atleta`/`convidado`/anônimo) + teste de auditoria (ação sem motivo é recusada).
+**Risco**: médio — é a área com maior superfície de abuso; por isso RBAC e auditoria entram junto, não depois.
+**Dependência**: Etapas 1 (segurança) e 3–5 (há conteúdo e pedidos para administrar).
 
 ---
 
@@ -548,14 +621,14 @@ admin conseguir suspender alguém pela interface (H2).
 | 1 | Segurança | 20 | 28 | **Sem XSS, sem furo de RLS** |
 | 2 | Contas + LGPD | 16 | 44 | Ciclo de conta completo |
 | 3 | Marketplace real | 24 | 68 | **Pedido existe** |
-| 4 | Pagamento | 24 | 92 | **Dinheiro entra** |
-| 5 | Comunidade/notificações | 20 | 112 | App avisa e conecta |
-| 6 | Agenda/presença | 14 | 126 | Treino com check-in |
-| 7 | Admin/moderação/dados | 18 | 144 | Operação sob controle |
-| 8 | PWA/SEO/a11y/perf | 18 | 162 | Produto polido |
-| 9 | Lançamento | 12 | 174 | **No ar** |
+| 4 | **Pagamento (Mercado Pago, split 5%)** | 30 | 98 | **Dinheiro entra** |
+| 5 | Comunidade/notificações | 20 | 118 | App avisa e conecta |
+| 6 | Agenda/presença | 14 | 132 | Treino com check-in |
+| 7 | **Console de Admin — controle total de contas** | 34 | 166 | Operação sob controle |
+| 8 | PWA/SEO/a11y/perf | 18 | 184 | Produto polido |
+| 9 | Lançamento | 12 | 196 | **No ar** |
 
-**v1 pública utilizável: fim da Etapa 4 (~92 h). Produto completo: fim da Etapa 9 (~174 h).**
+**v1 pública utilizável: fim da Etapa 4 (~98 h). Produto completo: fim da Etapa 9 (~196 h).**
 
 ---
 
@@ -588,7 +661,7 @@ Um item só é riscado quando todos os marcadores abaixo forem verdadeiros:
 - [ ] **Compra**: pedido criado no banco com total correto; pagamento aprovado via webhook assinado; comprador e vendedor acompanham o status; recibo por e-mail.
 - [ ] **Comunidade**: notificações em tempo real, seguir, denunciar, comentar com limites.
 - [ ] **Evento**: capacidade, lista de espera, check-in, lembrete.
-- [ ] **Admin**: aprovar admins, moderar denúncias, suspender, apagar conteúdo, ver auditoria e analytics.
+- [ ] **Admin**: console listando **todas** as contas; ficha completa editável de qualquer conta; suspender/banir/mesclar convidado/impersonar; RBAC testado por papel no banco; 2FA obrigatório; auditoria com antes/depois, motivo, IP e user-agent; moderação de denúncias; analytics e financeiro.
 - [ ] **Qualidade**: `npm test` verde, CI verde, Lighthouse ≥ 90/95/95, zero erro no console no fluxo principal.
 - [ ] **Operação**: domínio + HTTPS, backup com restore testado, Sentry, uptime, runbook.
 - [ ] **Legal**: Privacidade, Termos, Regras da Comunidade, consentimento gravado, exclusão de dados funcional.
@@ -596,13 +669,13 @@ Um item só é riscado quando todos os marcadores abaixo forem verdadeiros:
 
 ---
 
-## 8. Decisões pendentes (precisam do dono do produto antes da Etapa 4)
+## 8. Decisões de produto — tomadas e pendentes
 
 | # | Pergunta | Por que importa | Opções |
 |---|---|---|---|
-| 1 | **O marketplace cobra dinheiro de verdade?** | Define a Etapa 4 inteira (gateway, CNPJ, nota fiscal, split) | (a) sim, com gateway · (b) vitrine + contato direto · (c) pedido manual offline |
-| 2 | **Qual gateway?** | APIs, taxas, prazo de aprovação de conta | Mercado Pago · Pagar.me · Stripe |
-| 3 | **Taxa de intermediação?** | `get_analytics()` já assume **5%** de receita | Manter 5% · outro valor · zero |
+| 1 | ~~O marketplace cobra dinheiro de verdade?~~ | ✅ **DECIDIDO em 14/09/2026: SIM**, com gateway de pagamento | Etapa 4 integral (não é vitrine) |
+| 2 | ~~Qual gateway?~~ | ✅ **DECIDIDO: Mercado Pago** | Checkout Pro na v1 · webhook com `x-signature` · sandbox antes da produção |
+| 3 | ~~Taxa de intermediação?~~ | ✅ **DECIDIDO: 5%** | Split via `marketplace_fee` (PAY4) — já é o valor que `get_analytics()` calcula |
 | 4 | **Domínio e hospedagem** | J1/I2/SEO | GitHub Pages · Cloudflare Pages · Vercel |
 | 5 | **E-mail transacional** | J3 (confirmação, pedido, lembrete, aprovação de admin) | Resend · Postmark · SMTP próprio |
 | 6 | **Confirmação de e-mail** ligada no lançamento? | C1 — hoje está desligada (fluxo de beta) | Ligar · manter desligada |
@@ -610,6 +683,9 @@ Um item só é riscado quando todos os marcadores abaixo forem verdadeiros:
 | 8 | **Escopo geográfico/público** | Define frete, idioma (I7), LGPD vs GDPR | Escola/associação · público geral |
 | 9 | **App nativo?** | I1 (PWA) costuma bastar | PWA · PWA + wrapper (Capacitor) |
 | 10 | **Manter JS puro ou migrar para framework?** | Etapa 8/9 — 80 KB de `script.js` começa a pesar | Manter puro + módulos ES · migrar para Svelte/React (custo alto) |
+| 11 | **Impersonação real** (o admin entra como o usuário) liberada, ou só o modo *view-as* somente leitura? | L5 — risco operacional e implicação LGPD | Só view-as · view-as + impersonação com 2FA e prazo |
+| 12 | **Quais papéis de admin?** Além do dono: `admin`, `moderator`, `support`? | L6 — define a matriz de permissões | Os 4 papéis · só dono + admin |
+| 13 | **Vendedor precisa de CNPJ/MEI** para receber o repasse do split do Mercado Pago? | PAY2 e PAY12 — onboarding e fiscal | Exigir CNPJ · aceitar CPF com limite de valor |
 
 ---
 
@@ -619,6 +695,10 @@ Um item só é riscado quando todos os marcadores abaixo forem verdadeiros:
 |---|---|---|---|
 | 14/09/2026 | Servir o app com `server.mjs` (Node, sem dependências) no preview | Projeto é estático; `file://` quebra Auth/localStorage | A6 |
 | 14/09/2026 | Verificação de UI feita com jsdom + Supabase simulado em vez de reimplementar lógica | Testa o código de produção real | A1, §6 |
+| 14/09/2026 | **O marketplace cobra dinheiro de verdade** (não é vitrine) | Decisão do dono | Etapa 4, D1–D3, PAY1–PAY12 |
+| 14/09/2026 | **Gateway: Mercado Pago**, com Checkout Pro na v1 e webhook assinado; código de servidor via Supabase Edge Functions | Decisão do dono; site é estático e o `access_token` não pode ir ao navegador | Etapa 4, PAY1–PAY11 |
+| 14/09/2026 | **Taxa de intermediação: 5%**, retida por split (`marketplace_fee`) | Decisão do dono; já era o valor assumido em `get_analytics()` | PAY4, L12, H3 |
+| 14/09/2026 | **Admin com controle total de todas as contas**, implementado como console com RBAC no banco, auditoria com diff, 2FA e guarda-corpos LGPD — nunca como privilégio decidido no cliente | Decisão do dono + requisito de segurança | Área **L** (L1–L12), Etapa 7 |
 | — | — | — | — |
 
 ---
