@@ -67,7 +67,10 @@ async function sendFile(res, file) {
   });
   await new Promise((done) => {
     const stream = createReadStream(file);
-    stream.on("error", () => { res.end(); done(); });
+    stream.on("error", () => {
+      res.end();
+      done();
+    });
     stream.on("end", done);
     stream.pipe(res);
   });
@@ -100,6 +103,19 @@ const server = http.createServer(async (req, res) => {
 
     if (await sendFile(res, target)) {
       console.log(`${new Date().toISOString()}  200  ${req.method} ${req.url}`);
+      return;
+    }
+
+    // config.local.js é opcional (está no .gitignore). Quando não existe,
+    // devolvemos um stub vazio em vez de 404 — assim o console do navegador
+    // fica limpo e o app segue com o config.js.
+    if (target === join(ROOT, "config.local.js")) {
+      res.writeHead(200, {
+        "Content-Type": "text/javascript; charset=utf-8",
+        "Cache-Control": "no-store",
+      });
+      res.end("/* config.local.js não existe — usando config.js */\n");
+      console.log(`${new Date().toISOString()}  200  stub config.local.js`);
       return;
     }
 

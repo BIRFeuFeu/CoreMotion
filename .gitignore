@@ -1,0 +1,13 @@
+# Dependências de desenvolvimento (o app em si não tem build)
+node_modules/
+
+# Configuração local/staging — nunca versionar
+config.local.js
+.env
+.env.*
+
+# Artefatos
+coverage/
+dist/
+*.log
+.DS_Store

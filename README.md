@@ -8,30 +8,74 @@ no Supabase: autenticação, banco de dados e upload de imagens.
 |---|---|
 | `index.html` | Toda a marcação: landing, login/cadastro, onboarding, dashboard e modais |
 | `style.css` | Todo o visual |
-| `supabase-client.js` | Configuração de conexão com seu projeto Supabase |
+| `config.js` | **Chaves do projeto Supabase** (URL + anon). `config.local.js` (fora do git) tem prioridade |
+| `supabase-client.js` | Cria o cliente Supabase usando a configuração acima |
 | `toast.js` | Sistema de notificações (substitui os `alert()` do navegador) |
 | `auth.js` | Login por e-mail, login com Google, conta convidado (login anônimo), logout |
 | `db.js` | Upload de arquivos + leitura/escrita no banco (perfis, produtos, comentários, notícias, mídia, equipes, pedidos de admin) |
 | `script.js` | Toda a interação da interface, já ligada ao Supabase |
 | `schema.sql` | Script único que cria as tabelas, segurança, funções e buckets de imagem |
-| `server.mjs` | Servidor HTTP local de desenvolvimento (opcional, sem dependências) |
+| `server.mjs` | Servidor HTTP local de desenvolvimento (sem dependências) |
+| `tests/app.test.mjs` | Teste de integração da UI (jsdom + Supabase simulado) — `npm test` |
+| `scripts/check-syntax.mjs` | Confere a sintaxe de todos os scripts — `npm run check` |
+| `migrations/` | Migrações do banco (`0001_init.sql` = baseline idêntico ao `schema.sql`) |
+| `db/migrate.sh` | Aplica as migrations que ainda não rodaram (controla em `_migrations`) |
+| `.github/workflows/ci.yml` | CI: sintaxe + lint + formatação + testes em todo push |
 
 ---
 
-## Rodar localmente (preview)
+## Rodar, testar e operar
 
 O site é estático, mas **não funciona com `file://`** (o Supabase Auth e o
-`localStorage` exigem origem `http://` ou `https://`). Duas opções:
+`localStorage` exigem origem `http://` ou `https://`).
+
+### Rodar
 
 ```bash
-node server.mjs          # http://localhost:4173   (PORT=8080 node server.mjs para trocar a porta)
-# ou, sem Node:
+npm install               # só na primeira vez (instala jsdom/eslint/prettier)
+npm start                 # http://localhost:4173  (PORT=8080 npm start troca a porta)
+# sem Node também funciona:
 python3 -m http.server 4173
 ```
 
-Depois é só abrir `http://localhost:4173`. Para funcionar de verdade o projeto
-precisa das chaves do Supabase (já preenchidas em `supabase-client.js`) e do
-`schema.sql` aplicado no banco.
+### Verificar (é isso que o CI roda)
+
+```bash
+npm test                  # 43 verificações de UI (jsdom + Supabase simulado)
+npm run check             # sintaxe de todos os .js/.mjs
+npm run lint              # ESLint (0 erros)
+npm run format:check      # Prettier nos arquivos de ferramenta
+npm run verify            # tudo acima de uma vez
+bash db/verify-migrations.sh   # confere se o baseline das migrations está íntegro
+```
+
+### Configuração (chaves)
+
+A URL e a chave `anon` ficam em **`config.js`** (versionado). Para apontar para
+outro projeto sem alterar o arquivo versionado:
+
+```bash
+cp config.local.example.js config.local.js   # e edite (arquivo fora do git)
+```
+
+Prioridade: `localStorage` (via `configureSupabase("URL","CHAVE")` no console)
+→ `config.local.js` → `config.js`. O `window.SUPABASE_CONFIG_SOURCE` diz qual
+venceu.
+
+> ⚠️ A chave `anon` é **pública por desenho** — ela vai para o navegador de todo
+> visitante. Quem protege os dados é o RLS do banco. Os segredos de verdade
+> (`service_role` e, no futuro, o `access_token` do Mercado Pago) **nunca**
+> entram no repositório: ficam como *secret* de Supabase Edge Function.
+
+### Banco de dados
+
+O schema completo continua em `schema.sql`. Para mudanças novas, use
+**migrations** (veja `migrations/README.md`):
+
+```bash
+export SUPABASE_DB_URL="postgresql://postgres:[SENHA]@db.SEU-PROJETO.supabase.co:5432/postgres"
+./db/migrate.sh
+```
 
 > 📋 **Quer saber o que falta para virar um site real e funcional?**
 > Veja o **[PLANO-IMPLEMENTACAO.md](PLANO-IMPLEMENTACAO.md)** — diagnóstico
@@ -117,11 +161,14 @@ escolhe a conta, e volta logada automaticamente.
 
 ### 7. Chaves de API (já colocadas neste projeto)
 As chaves do projeto **tyvdtaiyihhaewczpnrf** já estão preenchidas no
-`supabase-client.js` (Project URL + anon public). **Nunca** use a chave
+**`config.js`** (Project URL + anon public). **Nunca** use a chave
 `service_role` no front-end — só a `anon`.
 
-Se um dia precisar trocar de projeto, edite `supabase-client.js` ou rode no
-console do navegador: `configureSupabase("URL", "CHAVE")`.
+Se um dia precisar trocar de projeto: edite `config.js`, ou crie um
+`config.local.js` (fora do git), ou rode no console do navegador
+`configureSupabase("URL", "CHAVE")`. Para **girar a chave** (em caso de vazamento):
+gere uma nova em *Project Settings → API*, cole no `config.js` e publique — a
+antiga para de funcionar na hora.
 
 ### 8. Login direto (sem verificação por e-mail) — configuração usada no beta
 No beta, o cadastro entra **direto**: a pessoa cria a conta e já cai logada no
@@ -308,9 +355,9 @@ O que será construído (**área L** do plano, **Etapa 7**):
 | **Editar qualquer dado** de qualquer conta | Nome, e-mail, função, esportes, bio, avatar e cargo — inline |
 | **Resetar senha** e **derrubar sessões** | Link de redefinição + "sair de todos os dispositivos" |
 | **Suspender, banir, excluir** | Com **motivo obrigatório** e prazo; o bloqueio vale no banco (`is_suspended`) |
-| **Promover/rebaixar** entre papéis | `owner` · `admin` · `moderator` · `support` (RBAC no banco) |
+| **Promover/rebaixar** entre papéis | Só **2 papéis**: `admin` e `usuario` (RBAC no banco). O `is_owner` continua sendo um privilégio extra do dono dentro de admin |
 | **Mesclar conta convidada** em conta real | Sem perder curtidas, inscrições e carrinho |
-| **Entrar como o usuário** (impersonação) | *View-as* somente leitura por padrão; impersonação real exige 2FA + motivo, expira em 30 min e mostra banner permanente |
+| **Entrar como o usuário** (impersonação **real**) | O admin age de fato na conta: exige 2FA + motivo digitado, expira em 30 min, mostra banner vermelho permanente e registra tudo na auditoria |
 | **Moderar tudo** | Fila de denúncias, apagar qualquer conteúdo, transferir propriedade |
 | **Controlar o dinheiro** | GMV, 5% retido, repasses pendentes, estornos, chargebacks e bloqueio de repasse |
 | **Ver analytics e auditoria** | `get_analytics()` (cadastros, esportes, receita, funil) + trilha com antes/depois, motivo, IP e user-agent |
@@ -319,6 +366,8 @@ O que será construído (**área L** do plano, **Etapa 7**):
 
 - **Nenhuma permissão é decidida no navegador** — tudo é checado no banco por
   `has_permission()`, do mesmo jeito que `is_owner`/`is_admin` já são hoje.
+- **Só 2 papéis** (`admin` e `usuario`) para o poder ficar óbvio; o dono é um
+  `admin` com `is_owner = true`, que é o único que mexe em dinheiro e promove admin.
 - **2FA (TOTP) obrigatório** para `admin` e `owner`, sessão curta e alerta de
   login em dispositivo novo.
 - **Toda ação fica em `audit_log`** com valor antigo, valor novo, motivo, IP e

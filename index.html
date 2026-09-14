@@ -1081,6 +1081,10 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Configuração: config.js é versionado; config.local.js (fora do git) tem prioridade.
+     Se config.local.js não existir, tudo bem — o app usa o config.js. -->
+<script src="config.js"></script>
+<script src="config.local.js"></script>
 <script src="supabase-client.js"></script>
 <script src="toast.js"></script>
 <script src="auth.js"></script>

@@ -7,7 +7,7 @@
 >
 > | | |
 > |---|---|
-> | **Versão** | 1.1 — 14/09/2026 (decisões de pagamento + sistema de admin) |
+> | **Versão** | 1.2 — 14/09/2026 (**Etapa 0 executada**) |
 > | **Autor** | Agente IA (Arena.ai Agent Mode) |
 > | **Branch** | `arena/01a09fcc-coremotion` |
 > | **Base analisada** | commit `90eff51` (13 arquivos na raiz) |
@@ -85,7 +85,7 @@ completo ao fim da Etapa 9**.
 | **Auditoria** | **100%** | **0%** | 🔴 | `audit_log` órfã |
 | **Analytics** | **100%** | **0%** | 🔴 | `get_analytics()` órfã |
 | PWA / SEO / acessibilidade | — | 20% | 🔴 | Manifest sem link e sem ícones, sem meta description, sem service worker |
-| Testes / CI | — | 0% | 🔴 | Nenhum teste versionado |
+| Testes / CI | — | 100% | 🟢 | **Pronto** (Etapa 0): `npm test` com 43 verificações + CI |
 | LGPD / termos / privacidade | — | 0% | 🔴 | Nenhuma página legal |
 
 ---
@@ -200,13 +200,13 @@ admin conseguir suspender alguém pela interface (H2).
 
 | ID | Tarefa | Evidência / contexto | P | E | Critérios de aceite |
 |---|---|---|---|---|---|
-| A1 | **Versionar o harness de testes** como `tests/app.test.mjs` + `package.json` (devDep `jsdom`) + `npm test` | hoje o harness existe só na sessão do agente | P0 | S | `npm test` roda 40+ asserções e falha com exit ≠ 0 quando algo quebra |
-| A2 | **CI (GitHub Actions)**: `node --check` em todos os `.js` + `npm test` + validação de HTML | nenhum workflow no repo | P0 | S | Push abre check verde/vermelho no PR |
-| A3 | **Configuração por ambiente**: mover URL/anon key para `config.js` gerado + fallback, remover segredo do repositório | `supabase-client.js:4-5` | P1 | M | Nenhum segredo em commit novo; app funciona com `config.local.js` gitignorado |
-| A4 | **Migrações versionadas**: quebrar o `schema.sql` monolítico em `migrations/0001_init.sql`, `0002_...`, com script `db/migrate.sh` | 1049 linhas em um arquivo só | P1 | M | Aplicar migrations em projeto Supabase vazio reproduz o schema; cada etapa seguinte vira uma migration nova |
-| A5 | **Lint/format**: ESLint + Prettier com regras para o estilo do projeto | nada | P2 | S | `npm run lint` sem erros; CI bloqueia |
-| A6 | **README de operação**: como provisionar, aplicar migrations, rodar local, publicar | README atual é tutorial de setup manual | P1 | S | Um estranho consegue subir o projeto seguindo só o README |
-| A7 | **Ambiente de staging**: segundo projeto Supabase (`coremotion-dev`) para não testar em produção | hoje só existe um projeto | P1 | S | `config.dev.js` aponta para o projeto de testes |
+| A1 ✅ | **Versionar o harness de testes** como `tests/app.test.mjs` + `package.json` (devDep `jsdom`) + `npm test` | hoje o harness existe só na sessão do agente | P0 | S | `npm test` roda 40+ asserções e falha com exit ≠ 0 quando algo quebra |
+| A2 ✅ | **CI (GitHub Actions)**: `node --check` em todos os `.js` + `npm test` + validação de HTML | nenhum workflow no repo | P0 | S | Push abre check verde/vermelho no PR |
+| A3 ✅ | **Configuração fora do código**: `config.js` (versionado) + `config.local.js` (gitignore) + `localStorage`, com `window.SUPABASE_CONFIG_SOURCE` dizendo qual venceu | `supabase-client.js` não tem mais chave hardcoded | P1 | M | **Ajustado na execução:** a `anon` é pública por desenho (vai ao navegador), então ela continua versionada — o ganho real é a separação de ambientes. Segredos de verdade (`service_role`, `access_token` do MP) seguem proibidos no repo |
+| A4 ✅ | **Migrações versionadas**: quebrar o `schema.sql` monolítico em `migrations/0001_init.sql`, `0002_...`, com script `db/migrate.sh` | 1049 linhas em um arquivo só | P1 | M | Aplicar migrations em projeto Supabase vazio reproduz o schema; cada etapa seguinte vira uma migration nova |
+| A5 ✅ | **Lint/format**: ESLint + Prettier com regras para o estilo do projeto | nada | P2 | S | `npm run lint` sem erros; CI bloqueia |
+| A6 ✅ | **README de operação**: como provisionar, aplicar migrations, rodar local, publicar | README atual é tutorial de setup manual | P1 | S | Um estranho consegue subir o projeto seguindo só o README |
+| A7 ⏳ | **Ambiente de staging**: segundo projeto Supabase (`coremotion-dev`) para não testar em produção | hoje só existe um projeto | P1 | S | `config.dev.js` aponta para o projeto de testes |
 
 ### B. Segurança e privacidade
 
@@ -344,8 +344,8 @@ admin conseguir suspender alguém pela interface (H2).
 | L2 | **Presença real**: RPC `touch_session()` (heartbeat no boot e a cada troca de tela, com debounce) gravando `last_seen_at`, dispositivo e IP; badge "online" para atividade < 5 min | **P0** | M | Admin vê quem está logado agora; o estado some após 5 min de inatividade |
 | L3 | **Ficha da conta (dossiê)** com 6 abas: **Perfil** (edição inline de qualquer campo), **Segurança** (reset de senha, forçar logout de todas as sessões, 2FA), **Conteúdo** (tudo que a conta criou, com ação por item), **Financeiro** (pedidos, vendas, taxa 5%, repasses, estornos), **Moderação** (denúncias) e **Auditoria** | **P0** | L | Qualquer campo de qualquer conta é editável pelo admin; as 6 abas mostram dados reais |
 | L4 | **Ações de controle**: promover/rebaixar entre papéis, **suspender/reativar com motivo e prazo**, banir, excluir com carência, verificar e-mail manualmente, **mesclar conta convidada → conta real** (preservando dados), transferir propriedade de conteúdo, crédito/débito manual com justificativa | **P0** | M | Cada ação funciona, exige motivo e aparece na auditoria |
-| L5 | **"Acessar como" (impersonação)**: modo *view-as* somente leitura por padrão; impersonação real apenas com 2FA + motivo + sessão de 30 min + banner vermelho permanente | P1 | M | Admin entra como o usuário; o banner "VOCÊ ESTÁ AGINDO COMO X" não some; tudo vai para `audit_log` |
-| L6 | **RBAC no banco**: tabelas `admin_roles`, `admin_permissions`, `admin_role_permissions` + função `has_permission(perm)` usada nas policies. Papéis: `owner` (tudo, inclusive financeiro) · `admin` (contas e conteúdo) · `moderator` (conteúdo e denúncias) · `support` (leitura + reset de senha) | **P0** | M | Chamar a API direto com token de `moderator` em ação de `admin` retorna erro; teste automatizado por papel |
+| L5 | **Impersonação real** (✅ decidida em 14/09/2026): o admin **entra de fato** na conta, via Edge Function que emite sessão temporária com `service_role`. Obrigatório: 2FA, **motivo digitado**, sessão de no máx. 30 min, banner vermelho permanente, botão "sair da impersonação" sempre visível e registro completo em `audit_log` | **P0** | M | Admin age como o usuário (escreve inclusive); banner não some; sessão expira sozinha em 30 min; cada ação durante a impersonação é marcada no log |
+| L6 | **RBAC no banco com 2 papéis** (✅ decidido em 14/09/2026: **somente admin e usuários**): `admin` e `usuario`. Coluna `role` em `profiles` + função `has_permission(perm)` usada nas policies; `is_owner` continua existindo como **privilégio extra dentro de admin** (financeiro, excluir conta, promover outros admins) — não como terceiro papel | **P0** | M | Conta `usuario` que chamar ação de admin pela API direta é recusada; `admin` não-dono não acessa financeiro nem promove admin; teste automatizado para os 3 casos (`usuario`, `admin`, `admin`+`is_owner`) |
 | L7 | **Auditoria total**: estender `audit_log` com `before`/`after` (diff JSON), `reason`, `ip`, `user_agent`, `result`; aba com filtros; **retenção mínima de 5 anos, sem delete** | **P0** | M | Toda ação sensível gera trilha com valor antigo e novo; nenhum papel apaga a trilha |
 | L8 | **Guarda-corpos do próprio admin**: 2FA (TOTP) obrigatório para `admin`/`owner`, sessão curta, alerta de login em dispositivo novo, confirmação dupla com motivo digitado em ações destrutivas, rate limit, `service_role` **somente** em Edge Functions | **P0** | M | Sem 2FA não há acesso admin; ação destrutiva sem motivo é recusada |
 | L9 | **LGPD no acesso a dados pessoais**: base legal e finalidade documentadas, **motivo obrigatório** para abrir a ficha de uma conta, e-mail/documentos mascarados por padrão com botão "revelar" auditado, registro de cada visualização | **P0** | M | Abrir ficha sem motivo é bloqueado; cada "revelar" fica na auditoria |
@@ -386,6 +386,27 @@ que sustenta o produto perante a LGPD e perante o próprio dono do site.
 
 **Testes**: `npm test`, `node --check` em todos os `.js`, aplicar migrations no staging.
 **Risco**: baixo. **Dependência**: acesso ao painel Supabase para criar o projeto de staging.
+
+#### ✅ Status da Etapa 0 (executada em 14/09/2026)
+
+| Item | Estado | Evidência |
+|---|---|---|
+| A1 testes versionados | ✅ pronto | `tests/app.test.mjs` — **43 verificações, 0 falhas**, exit 1 se falhar |
+| A2 CI | ✅ pronto | `.github/workflows/ci.yml` roda check + lint + format + test + verify-migrations |
+| A3 configuração | ✅ pronto | `config.js` + `config.local.example.js`; `supabase-client.js` sem chave; origem verificada nos dois modos (`local` e `arquivo`) |
+| A4 migrations | ✅ pronto | `migrations/0001_init.sql` (idêntico ao `schema.sql`, verificado por `diff`), `db/migrate.sh`, `db/verify-migrations.sh` |
+| A5 lint/format | ✅ pronto | `eslint.config.mjs` (0 erros — validado com arquivo-prova que gera `no-undef`/`no-dupe-keys`), `.prettierrc` |
+| A6 README de operação | ✅ pronto | Seção "Rodar, testar e operar" no README |
+| A7 staging | ⏳ **pendente** | Exige acesso ao painel do Supabase (criar projeto `coremotion-dev`). Depois é só preencher `config.local.js` |
+
+Comandos disponíveis: `npm start` · `npm test` · `npm run check` · `npm run lint`
+· `npm run format` · `npm run verify` · `./db/migrate.sh` · `./db/verify-migrations.sh`.
+
+**Achados desta etapa** (registrados para as próximas):
+- `runLoader()` (`script.js:854`) e `let toastTimer` (`toast.js:6`) são código
+  morto — entram na limpeza da Etapa 1.
+- `validation.js` continua sem ser carregado de propósito: ligá-lo aos
+  formulários é a tarefa **B6** (Etapa 1), não uma mudança de fundação.
 
 ---
 
@@ -486,7 +507,7 @@ o gateway é o **Mercado Pago** e a taxa de intermediação é **5%**.
 | PAY9 | **Reembolso e chargeback**: estorno total/parcial pela API refletido no pedido; webhook de chargeback com alerta ao dono | P1 | M | Estorno muda o status e aparece no financeiro do admin (L12) |
 | PAY10 | **Conciliação diária**: relatório comparando `orders`/`payments` com a API do MP; divergência vira alerta | P1 | M | Divergência simulada é detectada |
 | PAY11 | **Sandbox**: contas e cartões de teste do Mercado Pago; fluxo completo testado antes da produção | **P0** | S | Compra de teste aprovada, pendente e recusada |
-| PAY12 | **Fiscal**: registro/emissão de nota fiscal da taxa de intermediação (depende de CNPJ/MEI — K6) | P1 | — | Decisão contábil registrada em §9 |
+| PAY12 | **Fiscal da plataforma**: o vendedor **não precisa de CNPJ/MEI** (✅ decidido em 14/09/2026 — onboarding com CPF). Fica pendente só o lado da plataforma: como declarar a receita dos 5% (verificar com contador — não é bloqueio técnico) | P2 | S | Onboarding aceita CPF; nota/declaração da taxa documentada |
 
 **Definition of Done**
 - Comprar gera `orders` + `order_items` + preferência no MP com o **preço do banco**.
@@ -683,9 +704,9 @@ Um item só é riscado quando todos os marcadores abaixo forem verdadeiros:
 | 8 | **Escopo geográfico/público** | Define frete, idioma (I7), LGPD vs GDPR | Escola/associação · público geral |
 | 9 | **App nativo?** | I1 (PWA) costuma bastar | PWA · PWA + wrapper (Capacitor) |
 | 10 | **Manter JS puro ou migrar para framework?** | Etapa 8/9 — 80 KB de `script.js` começa a pesar | Manter puro + módulos ES · migrar para Svelte/React (custo alto) |
-| 11 | **Impersonação real** (o admin entra como o usuário) liberada, ou só o modo *view-as* somente leitura? | L5 — risco operacional e implicação LGPD | Só view-as · view-as + impersonação com 2FA e prazo |
-| 12 | **Quais papéis de admin?** Além do dono: `admin`, `moderator`, `support`? | L6 — define a matriz de permissões | Os 4 papéis · só dono + admin |
-| 13 | **Vendedor precisa de CNPJ/MEI** para receber o repasse do split do Mercado Pago? | PAY2 e PAY12 — onboarding e fiscal | Exigir CNPJ · aceitar CPF com limite de valor |
+| 11 | ~~Impersonação real ou só view-as?~~ | ✅ **DECIDIDO em 14/09/2026: impersonação REAL**, com 2FA + motivo + 30 min + banner + auditoria | L5 virou **P0** |
+| 12 | ~~Quais papéis de admin?~~ | ✅ **DECIDIDO: somente `admin` e `usuario`** (o `is_owner` continua como privilégio extra do dono dentro de admin) | L6, L4 |
+| 13 | ~~Vendedor precisa de CNPJ/MEI?~~ | ✅ **DECIDIDO: NÃO** — onboarding com CPF | PAY2, PAY12 |
 
 ---
 
@@ -699,6 +720,11 @@ Um item só é riscado quando todos os marcadores abaixo forem verdadeiros:
 | 14/09/2026 | **Gateway: Mercado Pago**, com Checkout Pro na v1 e webhook assinado; código de servidor via Supabase Edge Functions | Decisão do dono; site é estático e o `access_token` não pode ir ao navegador | Etapa 4, PAY1–PAY11 |
 | 14/09/2026 | **Taxa de intermediação: 5%**, retida por split (`marketplace_fee`) | Decisão do dono; já era o valor assumido em `get_analytics()` | PAY4, L12, H3 |
 | 14/09/2026 | **Admin com controle total de todas as contas**, implementado como console com RBAC no banco, auditoria com diff, 2FA e guarda-corpos LGPD — nunca como privilégio decidido no cliente | Decisão do dono + requisito de segurança | Área **L** (L1–L12), Etapa 7 |
+| 14/09/2026 | **Impersonação real** liberada (o admin entra de fato na conta), sempre com 2FA, motivo, sessão de 30 min, banner e auditoria | Decisão do dono | L5 (agora P0) |
+| 14/09/2026 | **Somente 2 papéis: `admin` e `usuario`** — sem moderador/suporte; `is_owner` segue como privilégio extra do dono dentro de admin | Decisão do dono | L6, L4 |
+| 14/09/2026 | **Vendedor não precisa de CNPJ/MEI** — onboarding do split com CPF | Decisão do dono | PAY2, PAY12, K6 |
+| 14/09/2026 | **Etapa 0 executada** (A1–A6 prontos, A7 pendente de acesso ao painel) | Fundação para tudo que vem depois | Etapa 0 |
+| 14/09/2026 | **Correção no A3**: a chave `anon` continua versionada em `config.js`, porque ela é pública por desenho (vai ao navegador de todo visitante). O objetivo real — separar ambientes e nunca versionar segredo de verdade — foi atingido com `config.local.js` + `SUPABASE_CONFIG_SOURCE` | Achei a falha no próprio critério durante a execução | A3, Etapa 1 (B10 continua sendo a proteção de fato) |
 | — | — | — | — |
 
 ---
