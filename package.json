@@ -10,8 +10,8 @@
     "test": "node tests/app.test.mjs",
     "check": "node scripts/check-syntax.mjs",
     "lint": "eslint .",
-    "format": "prettier --write \"*.json\" \".github/**/*.yml\" \"tests/**/*.mjs\" \"scripts/**/*.mjs\" \"eslint.config.mjs\" \"server.mjs\"",
-    "format:check": "prettier --check \"*.json\" \".github/**/*.yml\" \"tests/**/*.mjs\" \"scripts/**/*.mjs\" \"eslint.config.mjs\" \"server.mjs\"",
+    "format": "prettier --write \"*.json\" \"ci/**/*.yml\" \"tests/**/*.mjs\" \"scripts/**/*.mjs\" \"eslint.config.mjs\" \"server.mjs\"",
+    "format:check": "prettier --check \"*.json\" \"ci/**/*.yml\" \"tests/**/*.mjs\" \"scripts/**/*.mjs\" \"eslint.config.mjs\" \"server.mjs\"",
     "verify": "npm run check && npm run lint && npm run format:check && npm test"
   },
   "devDependencies": {
