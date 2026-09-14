@@ -33,6 +33,11 @@ Depois é só abrir `http://localhost:4173`. Para funcionar de verdade o projeto
 precisa das chaves do Supabase (já preenchidas em `supabase-client.js`) e do
 `schema.sql` aplicado no banco.
 
+> 📋 **Quer saber o que falta para virar um site real e funcional?**
+> Veja o **[PLANO-IMPLEMENTACAO.md](PLANO-IMPLEMENTACAO.md)** — diagnóstico
+> verificado do código, backlog completo priorizado e plano de execução em 10
+> etapas com critérios de aceite.
+
 ---
 
 ## Passo a passo — Supabase
