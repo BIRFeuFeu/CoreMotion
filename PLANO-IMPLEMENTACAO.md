@@ -7,7 +7,7 @@
 >
 > | | |
 > |---|---|
-> | **Versão** | 1.3 — 14/09/2026 (**Etapa 1 em andamento — XSS, upload e privacidade**) |
+> | **Versão** | 1.4 — 14/09/2026 (**Etapa 1: B1–B8 no front; falta B10/staging**) |
 > | **Autor** | Agente IA (Arena.ai Agent Mode) |
 > | **Branch** | `arena/01a09fcc-coremotion` |
 > | **Base analisada** | commit `90eff51` (13 arquivos na raiz) |
@@ -440,12 +440,12 @@ Comandos disponíveis: `npm start` · `npm test` · `npm run check` · `npm run 
 | B1 XSS | ✅ | `escapeHtml` aplicado em eventos, equipes, mídia, comentários, carrinho e pedidos de admin. Teste: comentário `<img src=x onerror=…>` → **0 nós** `<img>/<script>`, o payload aparece como texto e **nada executa** |
 | B2 upload (cliente) | ✅ | `validateUpload()` em `db.js` (tipo, tamanho, extensão saneada). Testes: >5 MB rejeitado, `.exe` rejeitado, vídeo aceito só no bucket `media` |
 | B4 URLs/CSS | ✅ | `safeUrl()` em mídia/equipes/carrinho e `safeColor()` para `--team-color`. Testes: `javascript:` bloqueado, injeção de CSS bloqueada |
-| B6 `validation.js` | ✅ parcial | `validation.js` agora é carregado e `LIMITS` rege o upload. Ligar `validateAll()` em **todos** os formulários ainda pendente |
+| B6 `validation.js` | ✅ | `validateForm()` ligado nos 9 formulários de `submit` (entrar, criar, forgot, new-password, evento, noticia, equipe, admin-request, produto). Testes: e-mail inválido reprovado, válido aprovado |
 | B3 upload (banco) | ⚠️ escrita, **não testada** | `migrations/0002` (só o dono grava na própria pasta + teto por `metadata`). Exige staging |
 | B5 privacidade | ⚠️ escrita, **não testada** | `migrations/0003` (`profiles_select_public` respeita `public_profile`). Exige staging |
-| B7 rate limit | ⏳ | próxima iteração |
-| B8 CSP | ⏳ | próxima iteração |
-| B10 suite RLS | ⏳ | depende do staging (A7) |
+| B7 rate limit | ✅ (client) | `rateLimit()` (janela deslizante) no login/cadastro; teste: bloqueia após N tentativas. O limite de servidor fica na Etapa 4 |
+| B8 CSP | ✅ (com ressalva) | meta CSP no `index.html` (connect/frame restritos ao Supabase; object-src/base-uri/form-action travados). `'unsafe-inline'` ainda exigido pelos handlers inline — removê-los é tarefa do BACKLOG. Verificar no navegador real |
+| B10 suite RLS | ⏳ | depende do staging (A7) — ver `BACKLOG.md` |
 
 **Bug corrigido nesta etapa**: o `onerror="mediaImgError(this)"` da mídia chamava uma
 função que **não existia** (Referência que estouraria a cada imagem quebrada).
@@ -746,6 +746,8 @@ Um item só é riscado quando todos os marcadores abaixo forem verdadeiros:
 | 14/09/2026 | **Correção no A3**: a chave `anon` continua versionada em `config.js`, porque ela é pública por desenho (vai ao navegador de todo visitante). O objetivo real — separar ambientes e nunca versionar segredo de verdade — foi atingido com `config.local.js` + `SUPABASE_CONFIG_SOURCE` | Achei a falha no próprio critério durante a execução | A3, Etapa 1 (B10 continua sendo a proteção de fato) |
 | 14/09/2026 | **Etapa 1 (parte 1) executada**: XSS eliminado em todas as interpolações de dado do banco (escapeHtml), uploads validados no cliente (validateUpload), URLs/CSS sanitizados (safeUrl/safeColor), validation.js carregado; testes de XSS/upload no harness | Execução direta da Etapa 1 | B1, B2, B4, B6 |
 | 14/09/2026 | **migrations 0002/0003 escritas e NÃO testadas** (storage hardening e privacidade de profiles) — bloqueadas pela falta de um banco de staging | Sem acesso ao Supabase neste ambiente | B3, B5, A7 |
+| 14/09/2026 | **Etapa 1 (parte 2)**: B6 (`validateForm` nos 9 formulários), B7 (`rateLimit` client no login/cadastro), B8 (meta CSP). Harness → 58 checks. Restante (B10, validar 0002/0003, CSP sem unsafe-inline) salvo em `BACKLOG.md` | Execução direta da Etapa 1 | B6, B7, B8 |
+| 14/09/2026 | **Bugs funcionais pré-existentes descobertos** e registrados no BACKLOG: criação de produto lê campos inexistentes (`#prod-quantidade` etc.), upload de mídia não está ligado (`#midia-file` ausente) | Leitura do código durante a Etapa 1 | Etapa 3 (pedidos/produto) |
 | — | — | — | — |
 
 ---

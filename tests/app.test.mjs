@@ -699,6 +699,21 @@ check(
     window.eval("validateUpload('media', __up.vid).ok") === true
 );
 
+/* ---- 10c. rate limit no login/cadastro (B7) ---- */
+window.eval("rateLimit('rl-h',3,60000);rateLimit('rl-h',3,60000);rateLimit('rl-h',3,60000)");
+check(
+  "rate limit: bloqueia após 3 tentativas",
+  window.eval("rateLimit('rl-h',3,60000).ok") === false
+);
+check("rate limit: informa retryIn", window.eval("rateLimit('rl-h',3,60000).retryIn") > 0);
+
+/* ---- 10d. validação de formulário ligada (B6) ---- */
+window.eval('document.getElementById("login-senha").value = "Abc12345"');
+window.eval('document.getElementById("login-email").value = "nao-eh-email"');
+check("B6: e-mail inválido é reprovado", window.eval('validateForm("form-entrar").ok') === false);
+window.eval('document.getElementById("login-email").value = "ok@email.com"');
+check("B6: e-mail válido é aprovado", window.eval('validateForm("form-entrar").ok') === true);
+
 /* ---- 10. nenhum erro acumulado durante todo o fluxo ---- */
 check(
   "nenhum erro de console/rejeição em todo o fluxo",

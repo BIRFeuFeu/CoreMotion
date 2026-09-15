@@ -404,6 +404,9 @@ function updateReq(id, ok){
 /* ---- LOGIN real via Supabase ---- */
 document.getElementById("form-entrar").addEventListener("submit", async e=>{
   e.preventDefault();
+  if(!validateForm("form-entrar").ok) return;
+  const rlLogin = rateLimit("login", 5, 60000);
+  if(!rlLogin.ok){ showFormError("login-error", `Muitas tentativas. Aguarde ${rlLogin.retryIn}s.`); return; }
   hideFormError("login-error");
   const email = document.getElementById("login-email").value.trim();
   const senha = document.getElementById("login-senha").value;
@@ -436,6 +439,9 @@ document.getElementById("form-entrar").addEventListener("submit", async e=>{
 /* ---- CADASTRO real via Supabase ---- */
 document.getElementById("form-criar").addEventListener("submit", async e=>{
   e.preventDefault();
+  if(!validateForm("form-criar").ok) return;
+  const rlSignup = rateLimit("signup", 5, 60000);
+  if(!rlSignup.ok){ showFormError("signup-error", `Muitas tentativas. Aguarde ${rlSignup.retryIn}s.`); return; }
   hideFormError("signup-error");
   const nome = document.getElementById("signup-nome").value.trim();
   const email = document.getElementById("signup-email").value.trim();
@@ -508,6 +514,7 @@ const formForgot = document.getElementById("form-forgot");
 if(formForgot){
   formForgot.addEventListener("submit", async e=>{
     e.preventDefault();
+    if(!validateForm("form-forgot").ok) return;
     hideFormError("forgot-error");
     document.getElementById("forgot-success").classList.add("hidden");
     const email = document.getElementById("forgot-email").value.trim();
@@ -538,6 +545,7 @@ const formNewPass = document.getElementById("form-new-password");
 if(formNewPass){
   formNewPass.addEventListener("submit", async e=>{
     e.preventDefault();
+    if(!validateForm("form-new-password").ok) return;
     document.getElementById("new-pass-error").classList.add("hidden");
     document.getElementById("new-pass-success").classList.add("hidden");
     const nova = document.getElementById("new-password").value;
@@ -966,6 +974,7 @@ document.getElementById("btn-novo-evento").addEventListener("click", ()=>{
 
 document.getElementById("form-evento").addEventListener("submit", async e=>{
   e.preventDefault();
+  if(!validateForm("form-evento").ok) return;
   if(adminBlock()) return;
   const btn = e.target.querySelector("button[type=submit]");
   const titulo = requiredField(document.getElementById("ev-titulo"), "Título do evento");
@@ -1043,6 +1052,7 @@ document.getElementById("btn-nova-noticia").addEventListener("click", ()=>{
 
 document.getElementById("form-noticia").addEventListener("submit", async e=>{
   e.preventDefault();
+  if(!validateForm("form-noticia").ok) return;
   const btn = e.target.querySelector("button[type=submit]");
   const titulo = requiredField(document.getElementById("news-titulo"), "Título da notícia");
   if(titulo === null) return;
@@ -1143,6 +1153,7 @@ document.getElementById("team-cor").addEventListener("input", e=>{
 
 document.getElementById("form-equipe").addEventListener("submit", async e=>{
   e.preventDefault();
+  if(!validateForm("form-equipe").ok) return;
   if(adminBlock()) return;
   const btn = document.getElementById("btn-salvar-equipe");
   btn.disabled = true;
@@ -1281,6 +1292,7 @@ async function loadAccountStatus(){
 
 document.getElementById("form-admin-request").addEventListener("submit", async e=>{
   e.preventDefault();
+  if(!validateForm("form-admin-request").ok) return;
   if(guestBlock()) return;
   const btn = e.target.querySelector("button[type=submit]");
   btn.disabled = true;
@@ -1741,6 +1753,7 @@ document.getElementById("btn-vender-produto").addEventListener("click", ()=>{
 
 document.getElementById("form-produto").addEventListener("submit", async e=>{
   e.preventDefault();
+  if(!validateForm("form-produto").ok) return;
   const btn = e.target.querySelector("button[type=submit]");
   const titulo = requiredField(document.getElementById("prod-titulo"), "Título do produto");
   if(titulo === null) return;
