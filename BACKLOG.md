@@ -23,23 +23,27 @@ toca o banco. **Tudo abaixo marcado "requer staging" fica travado até isso.**
 - [ ] **B8 — remover `'unsafe-inline'` do CSP**: exige eliminar os handlers inline
       (`onclick="..."`) do `index.html` e trocar por `addEventListener`. Só então o
       CSP fica estrito. *Verificar o CSP atual no navegador real (OAuth/Google).*
-- [ ] **B6 — completar**: `validateForm` cobre os 9 formulários de `submit`. Falta
-      ligar a validação nos fluxos de clique (onboarding, editar perfil, trocar senha
-      dentro do modal de perfil) — confirmar os ids reais desses botões/campos.
+- [x] **B6 — completar**: `validateForm` cobre os 9 formulários de `submit` **e** o
+      onboarding/editar perfil (`btn-concluir-cadastro`, campo `ob-nome`). Não há
+      "trocar senha logado" como feature (só o fluxo de "esqueci a senha", já validado).
 - [ ] **B7 — rate limit no servidor**: o limite client-side reduz ruído, mas o
       anti-força-bruta de verdade é o rate limit do Supabase Auth + um limite por IP
       nas Edge Functions (Etapa 4).
 
-## 🟠 Bugs funcionais descobertos (pré-existentes, fora da Etapa 1)
+## 🟠 Bug funcional confirmado (pré-existente)
 
-- [ ] **Criação de produto quebra**: `db.createProduct` lê `#prod-quantidade`,
-      `#prod-condicao` e `#prod-frete`, mas esses campos **não existem** no
-      `form-produto` → `null.value` estoura. Adicionar os campos ou remover as leituras.
-- [ ] **Upload de mídia não está ligado**: `handleMidiaFile` lê `#midia-file`,
-      `#midia-type` e `#midia-video-preview`, que **não existem** no `form-midia`
-      (só há a legenda). Conectar o seletor de arquivo/vídeo ao formulário.
-- [ ] **`#btn-finalizar-compra` não cria pedido** (`script.js`): só limpa o carrinho.
-      Corrigir junto com o fluxo de pedido da Etapa 3.
+- [ ] **`#btn-finalizar-compra` não cria pedido** (`script.js:1910`): o checkout só
+      limpa o carrinho e mostra "Compra finalizada com sucesso!", mas **não insere
+      nada em `orders`** (a tabela existe no schema). Corrigir junto com o fluxo de
+      pedido da Etapa 3.
+
+> ⚠️ **Correção (14/09/2026):** uma versão anterior deste backlog afirmava que a
+> "criação de produto quebra" (`#prod-quantidade` etc.) e que o "upload de mídia não
+> está ligado" (`#midia-file`). **Verifiquei no código e eram falsos** — eu os
+> inferi de nomes de função que não existem. Na verdade: `dbCreateProduct`
+> (`db.js:63`) insere só os campos que a tabela `products` tem (ela nem possui
+> quantidade/condição/frete), e a mídia usa `#midia-input` (que existe no
+> `index.html`). Esses dois itens foram removidos.
 
 ## 🟠 Etapa 2 — Plataforma / marketplace (~30 h)
 

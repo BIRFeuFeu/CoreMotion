@@ -699,6 +699,7 @@ document.getElementById("ob-avatar-input").addEventListener("change", e=>{
 
 document.getElementById("btn-concluir-cadastro").addEventListener("click", async ()=>{
   if(!currentUser){ showToast("Sessão expirada, faça login novamente."); return; }
+  if(!validateForm("onboarding").ok) return;
   const btn = document.getElementById("btn-concluir-cadastro");
   btn.disabled = true;
   btn.textContent = "SALVANDO...";

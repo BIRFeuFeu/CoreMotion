@@ -713,6 +713,13 @@ window.eval('document.getElementById("login-email").value = "nao-eh-email"');
 check("B6: e-mail inválido é reprovado", window.eval('validateForm("form-entrar").ok') === false);
 window.eval('document.getElementById("login-email").value = "ok@email.com"');
 check("B6: e-mail válido é aprovado", window.eval('validateForm("form-entrar").ok') === true);
+window.eval('document.getElementById("ob-nome").value = ""');
+check(
+  "B6: onboarding sem nome é reprovado",
+  window.eval('validateForm("onboarding").ok') === false
+);
+window.eval('document.getElementById("ob-nome").value = "Maria Silva"');
+check("B6: onboarding com nome é aprovado", window.eval('validateForm("onboarding").ok') === true);
 
 /* ---- 10. nenhum erro acumulado durante todo o fluxo ---- */
 check(

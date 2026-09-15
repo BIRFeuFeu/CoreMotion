@@ -235,6 +235,10 @@ const FORM_RULES = {
     ["prod-categoria", "Categoria", { min: 2, max: 80 }],
     ["prod-imagem", "Foto", { type: "file", acceptImage: true, required: false }],
   ],
+  // onboarding / editar perfil (modal-onboarding, handler btn-concluir-cadastro)
+  "onboarding": [
+    ["ob-nome", "Nome", { min: 3, max: 120 }],
+  ],
 };
 
 function validateForm(formId){

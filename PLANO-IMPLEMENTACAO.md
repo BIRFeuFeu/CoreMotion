@@ -440,7 +440,7 @@ Comandos disponíveis: `npm start` · `npm test` · `npm run check` · `npm run 
 | B1 XSS | ✅ | `escapeHtml` aplicado em eventos, equipes, mídia, comentários, carrinho e pedidos de admin. Teste: comentário `<img src=x onerror=…>` → **0 nós** `<img>/<script>`, o payload aparece como texto e **nada executa** |
 | B2 upload (cliente) | ✅ | `validateUpload()` em `db.js` (tipo, tamanho, extensão saneada). Testes: >5 MB rejeitado, `.exe` rejeitado, vídeo aceito só no bucket `media` |
 | B4 URLs/CSS | ✅ | `safeUrl()` em mídia/equipes/carrinho e `safeColor()` para `--team-color`. Testes: `javascript:` bloqueado, injeção de CSS bloqueada |
-| B6 `validation.js` | ✅ | `validateForm()` ligado nos 9 formulários de `submit` (entrar, criar, forgot, new-password, evento, noticia, equipe, admin-request, produto). Testes: e-mail inválido reprovado, válido aprovado |
+| B6 `validation.js` | ✅ | `validateForm()` ligado nos 9 formulários de `submit` **e** no onboarding/editar perfil (`btn-concluir-cadastro`). Testes: e-mail inválido/válido e onboarding sem/com nome |
 | B3 upload (banco) | ⚠️ escrita, **não testada** | `migrations/0002` (só o dono grava na própria pasta + teto por `metadata`). Exige staging |
 | B5 privacidade | ⚠️ escrita, **não testada** | `migrations/0003` (`profiles_select_public` respeita `public_profile`). Exige staging |
 | B7 rate limit | ✅ (client) | `rateLimit()` (janela deslizante) no login/cadastro; teste: bloqueia após N tentativas. O limite de servidor fica na Etapa 4 |
@@ -747,7 +747,7 @@ Um item só é riscado quando todos os marcadores abaixo forem verdadeiros:
 | 14/09/2026 | **Etapa 1 (parte 1) executada**: XSS eliminado em todas as interpolações de dado do banco (escapeHtml), uploads validados no cliente (validateUpload), URLs/CSS sanitizados (safeUrl/safeColor), validation.js carregado; testes de XSS/upload no harness | Execução direta da Etapa 1 | B1, B2, B4, B6 |
 | 14/09/2026 | **migrations 0002/0003 escritas e NÃO testadas** (storage hardening e privacidade de profiles) — bloqueadas pela falta de um banco de staging | Sem acesso ao Supabase neste ambiente | B3, B5, A7 |
 | 14/09/2026 | **Etapa 1 (parte 2)**: B6 (`validateForm` nos 9 formulários), B7 (`rateLimit` client no login/cadastro), B8 (meta CSP). Harness → 58 checks. Restante (B10, validar 0002/0003, CSP sem unsafe-inline) salvo em `BACKLOG.md` | Execução direta da Etapa 1 | B6, B7, B8 |
-| 14/09/2026 | **Bugs funcionais pré-existentes descobertos** e registrados no BACKLOG: criação de produto lê campos inexistentes (`#prod-quantidade` etc.), upload de mídia não está ligado (`#midia-file` ausente) | Leitura do código durante a Etapa 1 | Etapa 3 (pedidos/produto) |
+| 14/09/2026 | **CORREÇÃO**: os "bugs de produto/mídia" que registrei eram **falsos** (inferidos de funções inexistentes). Verificado: `dbCreateProduct` usa só campos reais e a mídia usa `#midia-input`. O único bug funcional confirmado é o `#btn-finalizar-compra` (não cria pedido) | Releitura do código | BACKLOG, Etapa 3 |
 | — | — | — | — |
 
 ---
