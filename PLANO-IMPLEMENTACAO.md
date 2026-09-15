@@ -397,7 +397,7 @@ que sustenta o produto perante a LGPD e perante o próprio dono do site.
 | A4 migrations | ✅ pronto | `migrations/0001_init.sql` (idêntico ao `schema.sql`, verificado por `diff`), `db/migrate.sh`, `db/verify-migrations.sh` |
 | A5 lint/format | ✅ pronto | `eslint.config.mjs` (0 erros — validado com arquivo-prova que gera `no-undef`/`no-dupe-keys`), `.prettierrc` |
 | A6 README de operação | ✅ pronto | Seção "Rodar, testar e operar" no README |
-| A7 staging | ⏳ **pendente** | Exige acesso ao painel do Supabase (criar projeto `coremotion-dev`). Depois é só preencher `config.local.js` |
+| A7 staging | ⏳ **pendente (guia pronto)** | Passo a passo completo em `SETUP-SUPABASE.md` (criar projeto, aplicar migrations, config, storage, auth, admin). Exige a conta do dono no painel |
 
 Comandos disponíveis: `npm start` · `npm test` · `npm run check` · `npm run lint`
 · `npm run format` · `npm run verify` · `./db/migrate.sh` · `./db/verify-migrations.sh`.
