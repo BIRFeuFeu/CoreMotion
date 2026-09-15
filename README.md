@@ -58,6 +58,10 @@ outro projeto sem alterar o arquivo versionado:
 cp config.local.example.js config.local.js   # e edite (arquivo fora do git)
 ```
 
+> 📘 **Guia completo de Supabase** (criar o projeto staging, aplicar as migrations
+> `0001/0002/0003`, configurar storage/auth e promover o primeiro admin):
+> veja **[`SETUP-SUPABASE.md`](SETUP-SUPABASE.md)**.
+
 Prioridade: `localStorage` (via `configureSupabase("URL","CHAVE")` no console)
 → `config.local.js` → `config.js`. O `window.SUPABASE_CONFIG_SOURCE` diz qual
 venceu.
