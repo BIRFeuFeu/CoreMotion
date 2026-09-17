@@ -20,7 +20,7 @@
      3. config.js     → este arquivo
    ========================================================= */
 window.COREMOTION_CONFIG = {
-  url: "https://tyvdtaiyihhaewczpnrf.supabase.co",
+  url: "https://znfnmuztbmsrmnqwivjo.supabase.co",
   anonKey:
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5dmR0YWl5aWhoYWV3Y3pwbnJmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzMzQ0MzEsImV4cCI6MjEwMDkxMDQzMX0.Y6-rvqiP3JcWXY7aOmgKslU1tO3Y8IjeTHucsz39h10",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpuZm5tdXp0Ym1zcm1ucXdpdmpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0ODExNDMsImV4cCI6MjEwNTA1NzE0M30.RtrTZ4NwahyH_ctVbMDpAom1yc9Xi2CubYTd9o4KlAI",
 };
