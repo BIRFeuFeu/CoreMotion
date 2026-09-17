@@ -1,35 +1,56 @@
-// Cole as chaves do seu projeto Supabase aqui:
-// 1. No Supabase: Project Settings > API
-// 2. Copie a "Project URL" e cole em SUPABASE_URL
-// 3. Copie a chave "anon public" e cole em SUPABASE_ANON_KEY
-const SUPABASE_URL = "https://tyvdtaiyihhaewczpnrf.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5dmR0YWl5aWhoYWV3Y3pwbnJmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzMzQ0MzEsImV4cCI6MjEwMDkxMDQzMX0.Y6-rvqiP3JcWXY7aOmgKslU1tO3Y8IjeTHucsz39h10";
+/* =========================================================
+   CONEXÃO COM O SUPABASE
+   ---------------------------------------------------------
+   As chaves NÃO ficam mais hardcoded aqui. Elas vêm de:
+     1. localStorage  (configureSupabase("URL","CHAVE") no console)
+     2. config.local.js  → window.COREMOTION_CONFIG_LOCAL (fora do git)
+     3. config.js        → window.COREMOTION_CONFIG       (versionado)
 
+   `window.SUPABASE_CONFIG_SOURCE` diz qual dos três venceu —
+   útil para ter certeza de que você não está apontando para o
+   banco de produção sem querer.
+   ========================================================= */
 const STORAGE_URL_KEY = "coremotion_supabase_url";
 const STORAGE_ANON_KEY = "coremotion_supabase_anon_key";
 
-function getConfigured(){
-  let url, key;
-  try{
-    url = localStorage.getItem(STORAGE_URL_KEY) || SUPABASE_URL;
-    key = localStorage.getItem(STORAGE_ANON_KEY) || SUPABASE_ANON_KEY;
-  }catch(e){
-    url = SUPABASE_URL;
-    key = SUPABASE_ANON_KEY;
-  }
+// Resolve url/chave pela ordem de prioridade e informa a origem.
+function resolveConfig(){
+  const arquivo = window.COREMOTION_CONFIG || {};
+  const local = window.COREMOTION_CONFIG_LOCAL || {};
+  let url = "", key = "", source = "arquivo";
 
-  url = (url || "").trim().replace(/\/+$/, "");
-  key = (key || "").trim();
+  try{
+    const lsUrl = localStorage.getItem(STORAGE_URL_KEY);
+    const lsKey = localStorage.getItem(STORAGE_ANON_KEY);
+    if(lsUrl && lsKey){
+      return { url: lsUrl, key: lsKey, source: "localStorage" };
+    }
+  }catch(e){ /* localStorage bloqueado (modo privado) — segue para os arquivos */ }
+
+  if(local.url && local.anonKey){
+    url = local.url; key = local.anonKey; source = "local";
+  }else{
+    url = arquivo.url || ""; key = arquivo.anonKey || ""; source = "arquivo";
+  }
+  return { url, key, source };
+}
+
+function getConfigured(){
+  const cfg = resolveConfig();
+  const url = (cfg.url || "").trim().replace(/\/+$/, "");
+  const key = (cfg.key || "").trim();
   const ok =
     /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url) &&
     key.length > 20 && key.startsWith("eyJ");
 
-  return { url, key, ok };
+  return { url, key, ok, source: cfg.source };
 }
 
 const config = getConfigured();
 window.SUPABASE_CONFIGURED = config.ok;
+window.SUPABASE_CONFIG_SOURCE = config.source;
 
+// Permite trocar de projeto sem editar arquivo (fica no localStorage).
 function configureSupabase(url, key){
   if(!url || !key){
     showToast("Informe a URL e a chave anon do seu projeto Supabase.", "error");
@@ -39,7 +60,7 @@ function configureSupabase(url, key){
     localStorage.setItem(STORAGE_URL_KEY, url.trim());
     localStorage.setItem(STORAGE_ANON_KEY, key.trim());
   }catch(e){
-    showToast("Não foi possível salvar no navegador — edite supabase-client.js diretamente.", "error");
+    showToast("Não foi possível salvar no navegador — edite config.js diretamente.", "error");
     return;
   }
   showToast("Configuração salva! Recarregando...", "success");
@@ -51,8 +72,9 @@ try {
   if (!config.ok) {
     sb = new Proxy({}, {
       get(){ throw new Error(
-        "Supabase ainda não configurado. Abra supabase-client.js e cole suas chaves " +
-        "ou rode no console: configureSupabase('URL', 'CHAVE')"
+        "Supabase ainda não configurado. Preencha config.js (ou copie " +
+        "config.local.example.js para config.local.js) ou rode no console: " +
+        "configureSupabase('URL', 'CHAVE')"
       ); }
     });
   } else if(!window.supabase){

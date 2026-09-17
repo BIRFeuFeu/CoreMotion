@@ -44,6 +44,28 @@ function escapeHtml(s){
   }[c]));
 }
 
+// Só deixa passar URLs http(s) vindas do banco. Qualquer outra coisa
+// (javascript:, data:, vbs:, relativo malicioso...) vira "" e o app
+// mostra o placeholder em vez de executar/injetar.
+function safeUrl(u){
+  const s = String(u || "").trim();
+  if(!s) return "";
+  try{
+    const parsed = new URL(s, window.location.href);
+    return (parsed.protocol === "http:" || parsed.protocol === "https:") ? parsed.href : "";
+  }catch(e){
+    return "";
+  }
+}
+
+// Cor vinda do banco só é aceita como #hex (3, 4, 6 ou 8 dígitos).
+// Evita injeção de CSS via background/variável (--team-color).
+function safeColor(c, fallback = "#e5383b"){
+  return /^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{4}$|^#[0-9a-fA-F]{6}$|^#[0-9a-fA-F]{8}$/.test(String(c || "").trim())
+    ? String(c).trim()
+    : fallback;
+}
+
 (function ensureToastRoot(){
   if(document.getElementById("toast-root")) return;
   const root = document.createElement("div");

@@ -1,0 +1,26 @@
+{
+  "name": "coremotion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CoreMotion — plataforma para atletas, técnicos e equipes (HTML/CSS/JS puro + Supabase)",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs",
+    "test": "node tests/app.test.mjs",
+    "check": "node scripts/check-syntax.mjs",
+    "lint": "eslint .",
+    "format": "prettier --write \"*.json\" \"ci/**/*.yml\" \"tests/**/*.mjs\" \"scripts/**/*.mjs\" \"eslint.config.mjs\" \"server.mjs\"",
+    "format:check": "prettier --check \"*.json\" \"ci/**/*.yml\" \"tests/**/*.mjs\" \"scripts/**/*.mjs\" \"eslint.config.mjs\" \"server.mjs\"",
+    "verify": "npm run check && npm run lint && npm run format:check && npm test"
+  },
+  "devDependencies": {
+    "eslint": "^9.13.0",
+    "globals": "^15.12.0",
+    "jsdom": "^25.0.1",
+    "prettier": "^3.3.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

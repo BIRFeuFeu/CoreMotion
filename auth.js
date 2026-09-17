@@ -72,3 +72,19 @@ function authIsGuest(user){
   if(!user) return false;
   return user.is_anonymous === true || user.app_metadata?.provider === "anonymous";
 }
+/* =========================================================
+   B7 — rate limit client-side (anti-força-bruta)
+   Janela deslizante em memória. Não substitui o rate limit do
+   servidor (Supabase Auth já tem o seu), mas reduz tentativas
+   automatizadas diretas ao formulário e dá feedback imediato.
+   ========================================================= */
+const __rateBuckets = {};
+function rateLimit(key, max = 5, windowMs = 60000){
+  const now = Date.now();
+  const arr = (__rateBuckets[key] = (__rateBuckets[key] || []).filter((t) => now - t < windowMs));
+  if(arr.length >= max){
+    return { ok: false, retryIn: Math.max(1, Math.ceil((windowMs - (now - arr[0])) / 1000)) };
+  }
+  arr.push(now);
+  return { ok: true };
+}

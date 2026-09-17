@@ -3,6 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!--
+  B8 — Content Security Policy (endurecimento).
+  'unsafe-inline' em script/style ainda é necessário porque o app usa
+  handlers inline (onclick=...) e estilos inline (--team-color). Remover
+  os handlers inline é tarefa do BACKLOG para então dropping 'unsafe-inline'.
+  connect/frame restritos ao Supabase; object-src/base-uri/form-action travados.
+  ⚠ Verificar no navegador real (OAuth/Google usa popup, não coberto por frame-src).
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>CoreMotion — Sua jornada esportiva elevada</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -1081,8 +1090,13 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Configuração: config.js é versionado; config.local.js (fora do git) tem prioridade.
+     Se config.local.js não existir, tudo bem — o app usa o config.js. -->
+<script src="config.js"></script>
+<script src="config.local.js"></script>
 <script src="supabase-client.js"></script>
 <script src="toast.js"></script>
+<script src="validation.js"></script>
 <script src="auth.js"></script>
 <script src="db.js"></script>
 <script src="script.js"></script>

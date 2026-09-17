@@ -8,12 +8,83 @@ no Supabase: autenticação, banco de dados e upload de imagens.
 |---|---|
 | `index.html` | Toda a marcação: landing, login/cadastro, onboarding, dashboard e modais |
 | `style.css` | Todo o visual |
-| `supabase-client.js` | Configuração de conexão com seu projeto Supabase |
+| `config.js` | **Chaves do projeto Supabase** (URL + anon). `config.local.js` (fora do git) tem prioridade |
+| `supabase-client.js` | Cria o cliente Supabase usando a configuração acima |
 | `toast.js` | Sistema de notificações (substitui os `alert()` do navegador) |
 | `auth.js` | Login por e-mail, login com Google, conta convidado (login anônimo), logout |
 | `db.js` | Upload de arquivos + leitura/escrita no banco (perfis, produtos, comentários, notícias, mídia, equipes, pedidos de admin) |
 | `script.js` | Toda a interação da interface, já ligada ao Supabase |
 | `schema.sql` | Script único que cria as tabelas, segurança, funções e buckets de imagem |
+| `server.mjs` | Servidor HTTP local de desenvolvimento (sem dependências) |
+| `tests/app.test.mjs` | Teste de integração da UI (jsdom + Supabase simulado) — `npm test` |
+| `scripts/check-syntax.mjs` | Confere a sintaxe de todos os scripts — `npm run check` |
+| `migrations/` | Migrações do banco (`0001_init.sql` = baseline idêntico ao `schema.sql`) |
+| `db/migrate.sh` | Aplica as migrations que ainda não rodaram (controla em `_migrations`) |
+| `ci/ci.yml` | Workflow de CI pronto (sintaxe + lint + formatação + testes). Ativação: veja `ci/README.md` |
+
+---
+
+## Rodar, testar e operar
+
+O site é estático, mas **não funciona com `file://`** (o Supabase Auth e o
+`localStorage` exigem origem `http://` ou `https://`).
+
+### Rodar
+
+```bash
+npm install               # só na primeira vez (instala jsdom/eslint/prettier)
+npm start                 # http://localhost:4173  (PORT=8080 npm start troca a porta)
+# sem Node também funciona:
+python3 -m http.server 4173
+```
+
+### Verificar (é isso que o CI roda)
+
+```bash
+npm test                  # 43 verificações de UI (jsdom + Supabase simulado)
+npm run check             # sintaxe de todos os .js/.mjs
+npm run lint              # ESLint (0 erros)
+npm run format:check      # Prettier nos arquivos de ferramenta
+npm run verify            # tudo acima de uma vez (é o que o CI roda)
+bash db/verify-migrations.sh   # confere se o baseline das migrations está íntegro
+```
+
+### Configuração (chaves)
+
+A URL e a chave `anon` ficam em **`config.js`** (versionado). Para apontar para
+outro projeto sem alterar o arquivo versionado:
+
+```bash
+cp config.local.example.js config.local.js   # e edite (arquivo fora do git)
+```
+
+> 📘 **Guia completo de Supabase** (criar o projeto staging, aplicar as migrations
+> `0001/0002/0003`, configurar storage/auth e promover o primeiro admin):
+> veja **[`SETUP-SUPABASE.md`](SETUP-SUPABASE.md)**.
+
+Prioridade: `localStorage` (via `configureSupabase("URL","CHAVE")` no console)
+→ `config.local.js` → `config.js`. O `window.SUPABASE_CONFIG_SOURCE` diz qual
+venceu.
+
+> ⚠️ A chave `anon` é **pública por desenho** — ela vai para o navegador de todo
+> visitante. Quem protege os dados é o RLS do banco. Os segredos de verdade
+> (`service_role` e, no futuro, o `access_token` do Mercado Pago) **nunca**
+> entram no repositório: ficam como *secret* de Supabase Edge Function.
+
+### Banco de dados
+
+O schema completo continua em `schema.sql`. Para mudanças novas, use
+**migrations** (veja `migrations/README.md`):
+
+```bash
+export SUPABASE_DB_URL="postgresql://postgres:[SENHA]@db.SEU-PROJETO.supabase.co:5432/postgres"
+./db/migrate.sh
+```
+
+> 📋 **Quer saber o que falta para virar um site real e funcional?**
+> Veja o **[PLANO-IMPLEMENTACAO.md](PLANO-IMPLEMENTACAO.md)** — diagnóstico
+> verificado do código, backlog completo priorizado e plano de execução em 10
+> etapas com critérios de aceite.
 
 ---
 
@@ -94,11 +165,14 @@ escolhe a conta, e volta logada automaticamente.
 
 ### 7. Chaves de API (já colocadas neste projeto)
 As chaves do projeto **tyvdtaiyihhaewczpnrf** já estão preenchidas no
-`supabase-client.js` (Project URL + anon public). **Nunca** use a chave
+**`config.js`** (Project URL + anon public). **Nunca** use a chave
 `service_role` no front-end — só a `anon`.
 
-Se um dia precisar trocar de projeto, edite `supabase-client.js` ou rode no
-console do navegador: `configureSupabase("URL", "CHAVE")`.
+Se um dia precisar trocar de projeto: edite `config.js`, ou crie um
+`config.local.js` (fora do git), ou rode no console do navegador
+`configureSupabase("URL", "CHAVE")`. Para **girar a chave** (em caso de vazamento):
+gere uma nova em *Project Settings → API*, cole no `config.js` e publique — a
+antiga para de funcionar na hora.
 
 ### 8. Login direto (sem verificação por e-mail) — configuração usada no beta
 No beta, o cadastro entra **direto**: a pessoa cria a conta e já cai logada no
@@ -205,6 +279,12 @@ Quando a conta vira admin, ela ganha:
   a página pública da equipe;
 - Um campo extra de **Cargo** no perfil (ex: "Técnico Chefe").
 
+> 🛡️ **Isso é só o começo.** O admin ganhará **controle total de todas as contas
+> do site** (console de contas, ficha completa, edição de qualquer dado,
+> suspensão, impersonação, financeiro e auditoria). Veja a seção
+> **[Decisões de produto](#decisões-de-produto-14092026--o-que-será-implementado)**
+> abaixo e a **área L** do [PLANO-IMPLEMENTACAO.md](PLANO-IMPLEMENTACAO.md).
+
 ### Sobre o aviso por e-mail pra você
 Hoje o aviso de "tem gente pedindo pra virar admin" aparece **dentro do
 app**, no painel que só você vê em Configurações → Conta — isso funciona
@@ -236,6 +316,88 @@ o painel dentro do app já resolve o "só eu aprovo" sem depender de mais nada.
 
 Para o login anônimo funcionar, lembre de ativar **Authentication → Providers →
 Anonymous Sign-ins** no seu projeto (passo 4 acima). Para o Google, é o passo 5.
+
+## Decisões de produto (14/09/2026) — o que será implementado
+
+Decisões do dono já incorporadas ao
+**[PLANO-IMPLEMENTACAO.md](PLANO-IMPLEMENTACAO.md)** (versão 1.1) e resumidas aqui.
+
+### 💳 Pagamento: Mercado Pago com taxa de 5%
+
+- O marketplace **cobra dinheiro de verdade** (não é vitrine).
+- Gateway: **Mercado Pago**. Na v1, **Checkout Pro** (Pix + cartão + boleto),
+  hospedado pelo próprio Mercado Pago — o cartão nunca passa pelo nosso código.
+- A plataforma retém **5%** de cada venda por **split de pagamento**
+  (`marketplace_fee` no Checkout Pro; `application_fee` no Checkout
+  Transparente/Bricks). O vendedor recebe o líquido automaticamente, sem repasse
+  manual — para isso ele vincula a conta MP dele por OAuth.
+- ⚠️ **Detalhe do cálculo:** o Mercado Pago desconta a taxa dele **primeiro** e a
+  comissão de 5% incide sobre o que sobra. O líquido do vendedor precisa ser
+  simulado antes de divulgar o número.
+- **Como um pedido vira "pago":** somente por **webhook** do Mercado Pago com a
+  assinatura `x-signature` validada (HMAC-SHA256 do manifesto
+  `id:{data.id};request-id:{x-request-id};ts:{ts};`) — nunca pelo navegador.
+- ⚠️ **Mudança de arquitetura:** o site é 100% estático e o `access_token` do
+  Mercado Pago não pode ir para o navegador. Por isso a criação da preferência e
+  o webhook viram **Supabase Edge Functions** (`mp-create-preference` e
+  `mp-webhook`) — o primeiro código de servidor do projeto.
+- **Hoje: nada disso existe.** O botão "Finalizar Compra" só limpa o carrinho
+  (`script.js:1881`), enquanto a função `create_order()` do `schema.sql:616`
+  nunca é chamada. Tudo detalhado na **Etapa 4** do plano.
+
+### 🛡️ Sistema de Admin — controle total de todas as contas
+
+O admin passa a ter **controle total de todas as contas que logarem no site**.
+Hoje ele faz 4 coisas (aprovar/recusar pedido, promover, revocar, excluir).
+O que será construído (**área L** do plano, **Etapa 7**):
+
+| O que o admin vai poder fazer | Como |
+|---|---|
+| Ver **todas** as contas do site | Console de Contas com papel, status, cadastro, último acesso, sessões ativas e contadores (produtos, mídias, comentários, pedidos, vendas) + filtros, busca, ordenação e CSV |
+| Saber **quem está logado agora** | Heartbeat (`touch_session()`) gravando `last_seen_at`, dispositivo e IP; badge "online" para atividade nos últimos 5 min |
+| Abrir a **ficha completa** de qualquer conta | 6 abas: Perfil, Segurança, Conteúdo, Financeiro, Moderação e Auditoria |
+| **Editar qualquer dado** de qualquer conta | Nome, e-mail, função, esportes, bio, avatar e cargo — inline |
+| **Resetar senha** e **derrubar sessões** | Link de redefinição + "sair de todos os dispositivos" |
+| **Suspender, banir, excluir** | Com **motivo obrigatório** e prazo; o bloqueio vale no banco (`is_suspended`) |
+| **Promover/rebaixar** entre papéis | Só **2 papéis**: `admin` e `usuario` (RBAC no banco). O `is_owner` continua sendo um privilégio extra do dono dentro de admin |
+| **Mesclar conta convidada** em conta real | Sem perder curtidas, inscrições e carrinho |
+| **Entrar como o usuário** (impersonação **real**) | O admin age de fato na conta: exige 2FA + motivo digitado, expira em 30 min, mostra banner vermelho permanente e registra tudo na auditoria |
+| **Moderar tudo** | Fila de denúncias, apagar qualquer conteúdo, transferir propriedade |
+| **Controlar o dinheiro** | GMV, 5% retido, repasses pendentes, estornos, chargebacks e bloqueio de repasse |
+| **Ver analytics e auditoria** | `get_analytics()` (cadastros, esportes, receita, funil) + trilha com antes/depois, motivo, IP e user-agent |
+
+**Regras de segurança desse poder (inegociáveis):**
+
+- **Nenhuma permissão é decidida no navegador** — tudo é checado no banco por
+  `has_permission()`, do mesmo jeito que `is_owner`/`is_admin` já são hoje.
+- **Só 2 papéis** (`admin` e `usuario`) para o poder ficar óbvio; o dono é um
+  `admin` com `is_owner = true`, que é o único que mexe em dinheiro e promove admin.
+- **2FA (TOTP) obrigatório** para `admin` e `owner`, sessão curta e alerta de
+  login em dispositivo novo.
+- **Toda ação fica em `audit_log`** com valor antigo, valor novo, motivo, IP e
+  user-agent — e nenhum papel consegue apagar a trilha (retenção mínima de 5 anos).
+- **Ações destrutivas exigem motivo digitado** + confirmação dupla.
+- **LGPD:** abrir a ficha de uma conta exige motivo; e-mail e documentos aparecem
+  mascarados até o "revelar", e cada revelação é auditada.
+- A chave `service_role` **só existe dentro das Edge Functions**, nunca no front.
+
+## Segurança (Etapa 1 — em andamento)
+
+O que já foi blindado (com teste automatizado no `npm test`):
+
+- **XSS eliminado**: todo dado que vem do banco e vai para `innerHTML` passa por
+  `escapeHtml` (eventos, equipes, mídia, comentários, carrinho, pedidos de admin).
+  Um comentário `<img src=x onerror=…>` vira **texto**, não código.
+- **Upload validado no cliente** (`validateUpload` em `db.js`): só imagem (ou vídeo
+  no feed), teto de 5 MB / 50 MB, extensão saneada para `[a-z0-9]`.
+- **URLs e cores sanitizadas**: `safeUrl()` só aceita `http(s)`; `safeColor()` só
+  aceita `#hex` (bloqueia injeção de CSS via `--team-color`).
+- **`validation.js` carregado**: os limites (`LIMITS`) agora regem o upload.
+
+O que está **escrito mas não testado** (exige um banco de staging — veja A7):
+
+- `migrations/0002` — só o dono grava na própria pasta do Storage + teto de tamanho.
+- `migrations/0003` — `profiles` privado deixa de ser legível por terceiros.
 
 ## O que já foi melhorado nesta versão
 

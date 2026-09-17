@@ -183,3 +183,73 @@ async function retry(fn, opts = {}){
   }
   throw lastErr;
 }
+/* =========================================================
+   B6 — regras por formulário + validateForm(formId)
+   validateForm monta o spec e delega ao validateAll, que
+   mostra toast e foca o primeiro campo inválido.
+   Retorna { ok:true, valores } ou { ok:false }.
+   ========================================================= */
+const FORM_RULES = {
+  "form-entrar": [
+    ["login-email", "E-mail", { type: "email" }],
+    ["login-senha", "Senha", { type: "password" }],
+  ],
+  "form-criar": [
+    ["signup-nome", "Nome", { min: 3, max: 120 }],
+    ["signup-email", "E-mail", { type: "email" }],
+    ["signup-senha", "Senha", { type: "password" }],
+    ["signup-senha-confirma", "Confirmação de senha", { type: "passwordConfirm", senhaFrom: "signup-senha" }],
+  ],
+  "form-forgot": [
+    ["forgot-email", "E-mail", { type: "email" }],
+  ],
+  "form-new-password": [
+    ["new-password", "Nova senha", { type: "password" }],
+    ["new-password-confirm", "Confirmação", { type: "passwordConfirm", senhaFrom: "new-password" }],
+  ],
+  "form-evento": [
+    ["ev-titulo", "Título", { min: LIMITS.EVENT_TITLE_MIN, max: LIMITS.EVENT_TITLE_MAX }],
+    ["ev-esporte", "Esporte", { min: 2, max: 100 }],
+    ["ev-data", "Data", { min: 1 }],
+    ["ev-local", "Local", { max: 200, required: false }],
+    ["ev-descricao", "Descrição", { max: LIMITS.EVENT_DESC_MAX, required: false }],
+  ],
+  "form-noticia": [
+    ["news-titulo", "Título", { min: LIMITS.NEWS_TITLE_MIN, max: LIMITS.NEWS_TITLE_MAX }],
+    ["news-conteudo", "Conteúdo", { min: 1, max: LIMITS.NEWS_CONTENT_MAX }],
+    ["news-imagem", "Imagem", { type: "file", acceptImage: true, required: false }],
+  ],
+  "form-equipe": [
+    ["team-nome", "Nome da equipe", { min: 3, max: 100 }],
+    ["team-esporte", "Esporte", { min: 2, max: 100 }],
+    ["team-local", "Local", { max: 160, required: false }],
+    ["team-tagline", "Slogan", { max: 120, required: false }],
+    ["team-descricao", "Descrição", { max: 500, required: false }],
+  ],
+  "form-admin-request": [
+    ["request-message", "Mensagem", { min: 10, max: LIMITS.MESSAGE_MAX }],
+  ],
+  "form-produto": [
+    ["prod-titulo", "Título", { min: LIMITS.PRODUCT_TITLE_MIN, max: LIMITS.PRODUCT_TITLE_MAX }],
+    ["prod-preco", "Preço", { type: "number", min: LIMITS.PRODUCT_PRICE_MIN, max: LIMITS.PRODUCT_PRICE_MAX }],
+    ["prod-categoria", "Categoria", { min: 2, max: 80 }],
+    ["prod-imagem", "Foto", { type: "file", acceptImage: true, required: false }],
+  ],
+  // onboarding / editar perfil (modal-onboarding, handler btn-concluir-cadastro)
+  "onboarding": [
+    ["ob-nome", "Nome", { min: 3, max: 120 }],
+  ],
+};
+
+function validateForm(formId){
+  const rules = FORM_RULES[formId];
+  if(!rules) return { ok: true };
+  const specs = rules.map(([id, label, opts]) => {
+    if(opts && opts.senhaFrom){
+      const src = document.getElementById(opts.senhaFrom);
+      return [id, label, { type: "passwordConfirm", senha: src ? src.value : "" }];
+    }
+    return [id, label, opts];
+  });
+  return validateAll(specs);
+}

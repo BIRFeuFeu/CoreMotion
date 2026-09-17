@@ -6,10 +6,36 @@
 /* ---------- STORAGE (upload de arquivos/imagens) ---------- */
 
 // Envia um arquivo para um bucket do Storage e devolve a URL pública.
-// bucket: "avatars" | "products" | "news" | "media"
+// Validação central de upload (B2): tipo, tamanho e nome de arquivo.
+// Usa os limites do validation.js (LIMITS) — espelhados dos `check` do banco.
+// Só o bucket "media" aceita vídeo; os demais aceitam apenas imagem.
+function validateUpload(bucket, file){
+  if(!file) return { ok:false, erro:"Selecione um arquivo." };
+  const isImage = String(file.type || "").startsWith("image/");
+  const isVideo = String(file.type || "").startsWith("video/");
+  const allowVideo = bucket === "media";
+  if(!isImage && !(isVideo && allowVideo)){
+    return { ok:false, erro:`Envie uma imagem${allowVideo ? " ou vídeo" : ""} válida.` };
+  }
+  const maxBytes = isVideo ? LIMITS.FILE_VIDEO_MAX_BYTES : LIMITS.FILE_IMAGE_MAX_BYTES;
+  if(!Number.isFinite(file.size) || file.size <= 0){
+    return { ok:false, erro:"Arquivo inválido." };
+  }
+  if(file.size > maxBytes){
+    return { ok:false, erro:`Arquivo muito grande (máx ${Math.round(maxBytes/1024/1024)} MB).` };
+  }
+  return { ok:true, isVideo };
+}
+
+// bucket: "avatars" | "products" | "news" | "media" | "teams"
 async function uploadFile(bucket, file, userId){
-  const ext = file.name.split(".").pop();
-  const path = `${userId}/${Date.now()}.${ext}`;
+  const v = validateUpload(bucket, file);
+  if(!v.ok) throw new Error(v.erro);
+  // Extensão saneada: só [a-z0-9]; o resto vira a extensão padrão do tipo.
+  const rawExt = String(String(file.name.split(".").pop() || "").toLowerCase()).replace(/[^a-z0-9]/g, "");
+  const ext = rawExt || (v.isVideo ? "mp4" : "jpg");
+  // Nome único e previsível: {userId}/{timestamp}-{rand}.{ext}
+  const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const { error } = await sb.storage.from(bucket).upload(path, file, {
     cacheControl: "3600",
     upsert: false
